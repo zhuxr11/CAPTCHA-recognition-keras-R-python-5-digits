@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-23 23:50:32<br />
-**Compiled**: 2021-08-23 23:50:35
+**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-24 00:03:27<br />
+**Compiled**: 2021-08-24 00:03:29
 
 ## Introduction
 
@@ -206,8 +206,6 @@ conv_model <- keras::keras_model(
     .init = input_layer)
 )
 deepviz::plot_model(conv_model)
-#> Warning: The `x` argument of `as_tibble.matrix()` must have unique column names if `.name_repair` is omitted as of tibble 2.0.0.
-#> Using compatibility `.name_repair`.
 ```
 
 <img src="README_files/figure-gfm/build-conv-model-1.png" width="100%" />

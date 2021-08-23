@@ -136,7 +136,7 @@ A CNN model was built to break the text-based CAPTCHA. A CNN model consists of t
 
 The convolutional model (diagram as below) was built by adding multiple modules of convolutional and max-pooling layers, optionally adding a batch-normalization layer to improve model convergence.
 
-```{r build-conv-model, message=FALSE, screenshot.force=TRUE}
+```{r build-conv-model, message=FALSE, warning=FALSE, screenshot.force=TRUE}
 # Define a function that build a module of convolutional and pooling layers
 build_unit_conv_layer <- function(input_layer,
                                   filters,
