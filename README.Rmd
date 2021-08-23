@@ -1,0 +1,453 @@
+---
+output: github_document
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
+
+**Authors**: Xiurui Zhu<br />
+**Modified**: `r file.info("README.Rmd")$mtime`<br />
+**Compiled**: `r Sys.time()`
+
+## Introduction
+
+CAPTCHA stands for "**C**ompletely **A**utomated **P**ublic **T**uring test to tell **C**omputers and **H**umans **A**part". There are mainly two kinds of CAPTCHA systems, the text-based one and the image-based one. The text-based CAPTCHA is the earlier version that usually contains a known number of digits and letters. To escape the detection by optical character recognition (OCR), the text-based CAPTCHA images usually contains distortion, blurring and noise (such as random deletion lines). The text-based images are now retreating from applications, since they are known to be breakable by deep learning technology, such as convolutional neural network (CNN), as demonstrated by [a study in python](https://medium.com/@manvi./captcha-recognition-using-convolutional-neural-network-d191ef91330e). This paper will go through this process in R.
+
+## Methods
+
+### Data preparation
+
+To facilitate the analyses in the paper, we need to load the following packages: `tidyverse`, `magrittr`, `rlang`, `keras`, `png`, `tools`, `ggpubr` and `deepviz`. Please note that the `keras` package requires a working `tensorflow` R package with python support.
+
+```{r libraries, message=FALSE, warning=FALSE, results='hold'}
+check_packages <- function(pkg_name, repo = c("cran", "github"), repo_path) {
+  repo <- match.arg(repo)
+  # Load installed packages
+  inst_packages <- installed.packages()
+  if (pkg_name %in% inst_packages == FALSE) {
+    cat("* Installing: ", pkg_name, ", repo = ", repo, "\n", sep = "")
+    switch(repo,
+           cran = install.packages(pkg_name),
+           github = {
+             if ("devtools" %in% inst_packages == FALSE) {
+               install.packages("devtools")
+             }
+             devtools::install_github(repo_path)
+           })
+  } else {
+    cat("* Package already installed: ", pkg_name, "\n", sep = "")
+  }
+  suppressPackageStartupMessages(
+    library(pkg_name, character.only = TRUE)
+  )
+}
+
+# CRAN packages (load "keras" last to set tensorflow seed right afterwards)
+check_packages("tidyverse", repo = "cran")
+purrr::walk(.x = c("magrittr", "rlang", "png", "tools", "ggpubr", "keras"),
+            .f = check_packages, repo = "cran")
+tensorflow::set_random_seed(599L)
+
+# Github packages
+purrr::walk2(.x = c("deepviz"),
+             .y = c("andrie/deepviz"),
+             .f = ~ check_packages(.x, repo = "github", repo_path = .y))
+```
+
+Image data from a [5-digit text-based CAPTCHA dataset](https://www.kaggle.com/fournierp/captcha-version-2-images) were first loaded with the `samples` folder unzipped and placed under the current working directory. A total of `r list.files("samples", pattern = "\\.png", recursive = FALSE) %>% length()` png images were turned into grayscale (like the one below) and put into a three-dimensional array where the first one as samples, the second one as pixel rows and the third as pixel columns.
+
+```{r load-images, cache=TRUE}
+# Load image file names
+file_names <- list.files("samples",
+                         pattern = "\\.png$",
+                         full.names = TRUE,
+                         recursive = FALSE)
+
+# Load images (this may take minutes)
+data_x <- file_names %>%
+  purrr::map(~ .x %>%
+               png::readPNG() %>%
+               # Select the first 3 color channels as RGB
+               `[`(, , 1:3, drop = FALSE) %>%
+               # Turn the image into grayscale
+               apply(MARGIN = 1:2, mean, na.rm = TRUE) %>%
+               keras::array_reshape(dim = c(dim(.), 1L))) %>%
+  # Turn list into array
+  purrr::reduce2(.y = 1:length(.), 
+                 .f = function(array., matrix., idx) {
+                   array.[idx, , , ] <- matrix.
+                   array.
+                 },
+                 .init = array(0, dim = c(length(.), dim(.[[1L]]))))
+print(dim(data_x))
+image(t(data_x[5L, , , , drop = TRUE]),
+      xlim = c(0, 1),
+      ylim = c(1, 0),
+      col = gray.colors(n = 256L))
+```
+
+The labels were then loaded from the file names and turned them into a list of categorical matrices with one digit per element.
+
+```{r process-labels}
+# Define the number of digits and letters per CAPTCHA
+digit <- 5L
+# Define a dictionary of digits and letters present in CAPTCHA
+class_level <- c(0:9, letters)
+
+# Define a function to convert character vector to categorical matrix list
+labels2matrices <- function(labels, class_level) {
+  labels %>%
+    stringr::str_extract_all(pattern = ".", simplify = TRUE) %>%
+    as.data.frame() %>%
+    as.list() %>%
+    purrr::set_names(NULL) %>%
+    purrr::map(~ {
+      factor(.x, levels = class_level) %>%
+        as.numeric() %>%
+        `-`(1L) %>%
+        keras::to_categorical(num_classes = length(class_level))
+    })
+}
+
+# Process image labels
+data_y_labels <- file_names %>%
+  basename() %>%
+  tools::file_path_sans_ext()
+data_y <- data_y_labels %>%
+  labels2matrices(class_level = class_level)
+print(length(data_y))
+print(dim(data_y[[1L]]))
+```
+
+### Modeling
+
+A CNN model was built to break the text-based CAPTCHA. A CNN model consists of two parts, one as convolutional model and the other as deep neural-network (DNN) model, joined by a flatten layer. Since there are multiple digits to predict for each CAPTCHA image, we would build the model including a common convolutional model, a common flatten layer and multiple DNN models (one for each digit).
+
+#### Convulutional model
+
+The convolutional model (diagram as below) was built by adding multiple modules of convolutional and max-pooling layers, optionally adding a batch-normalization layer to improve model convergence.
+
+```{r build-conv-model, message=FALSE, screenshot.force=TRUE}
+# Define a function that build a module of convolutional and pooling layers
+build_unit_conv_layer <- function(input_layer,
+                                  filters,
+                                  kernel_size,
+                                  pool_size,
+                                  activation,
+                                  kernel_padding,
+                                  pool_padding,
+                                  batch_norm = FALSE,
+                                  ...) {
+  conv_layer <- input_layer %>%
+    keras::layer_conv_2d(filters = filters,
+                         kernel_size = kernel_size,
+                         activation = activation,
+                         padding = kernel_padding)
+  if (batch_norm == TRUE) {
+    conv_layer <- conv_layer %>%
+      keras::layer_batch_normalization(...)
+  }
+  conv_layer %>% # input_shape = dim(data_x)[-1L]
+    keras::layer_max_pooling_2d(pool_size = pool_size,
+                                padding = pool_padding)
+}
+
+# Define the convolutional model
+input_layer <- keras::layer_input(shape = dim(data_x)[-1L])
+conv_model <- keras::keras_model(
+  inputs = input_layer,
+  outputs = tibble::tribble(
+    ~filters, ~kernel_size, ~pool_size, ~activation, ~kernel_padding,
+    ~pool_padding, ~batch_norm,
+    16L, c(3L, 3L), c(2L, 2L), "relu", "same", "same", FALSE,
+    32L, c(3L, 3L), c(2L, 2L), "relu", "same", "same", FALSE,
+    32L, c(3L, 3L), c(2L, 2L), "relu", "same", "same", TRUE
+  ) %>%
+    purrr::pmap(function(...) list(...)) %>%
+    purrr::reduce(.f = ~ {
+      rlang::inject(build_unit_conv_layer(.x, !!!.y))
+    },
+    .init = input_layer)
+)
+deepviz::plot_model(conv_model)
+
+# Define a flatten layer
+conv_layer_flatten <- conv_model(input_layer) %>%
+  keras::layer_flatten()
+```
+
+#### Deep neural network (DNN) models
+
+Each DNN model (diagram as below) was built with a hidden layer and a dropout layer, with the latter as a regularization method to prevent overfitting. The output layer of each DNN model adopted a multi-class configuration with the unit as the number of possibilities per digit and activation function as `"softmax"`. The input layer of each DNN model was copied from the shape of the output from the flatten layer.
+
+```{r build-DNN-models, screenshot.force=TRUE}
+# Define a function that copies the shape of a layer and defines an input layer
+build_input_layer_like <- function(layer) {
+  keras::layer_input(shape = as.integer(keras::k_int_shape(layer)[-1L]))
+}
+
+# Define a list of DNN models, one for each digit
+deep_models <- purrr::rerun(
+  .n = digit,
+  build_input_layer_like(conv_layer_flatten) %>%
+    keras::keras_model(
+      outputs = keras::layer_dense(.,
+                                   units = 64L,
+                                   activation = "relu") %>%
+        keras::layer_dropout(rate = 0.5) %>%
+        keras::layer_dense(units = length(class_level),
+                           activation = "softmax")
+    )
+)
+length(deep_models)
+deepviz::plot_model(deep_models[[1L]])
+
+# Define output layers
+output_layers <- deep_models %>%
+  purrr::map(~ {
+    .x(conv_layer_flatten)
+  })
+```
+
+#### Assembled CNN model
+
+The convolutional model and the DNN models were assembled into a final CNN model (diagram as below) and the final CNN model was compiled for training.
+
+```{r assemble-model, screenshot.force=TRUE}
+# Assemble the final model
+model <- keras::keras_model(inputs = input_layer,
+                            outputs = output_layers %>%
+                              purrr::reduce(c))
+print(model)
+deepviz::plot_model(model)
+
+# Compile the final model
+model %>%
+  keras::compile(optimizer = "adam",
+                 loss = "categorical_crossentropy",
+                 metrics = c("accuracy"))
+```
+
+## Results
+
+### Model training
+
+The final CNN model was trained with `r length(file_names) - 100L` images with 20% of them as cross-validation dataset.
+
+```{r train-model, cache=TRUE, message=FALSE}
+set.seed(999L)
+train_idx <- sample.int(dim(data_x)[1L], 940L)
+model_history <- model %>%
+  keras::fit(x = data_x[train_idx, , , , drop = FALSE],
+             y = data_y %>%
+               purrr::map(~ {
+                 .x[train_idx, , drop = FALSE]
+               }),
+             batch_size = 32L,
+             epochs = 200L,
+             validation_split = 0.2,
+             view_metrics = FALSE)
+print(model_history)
+```
+
+### Convolutional features
+
+When an image (shown above) went through the convolutional model, various features were abstracted and some were more active (brighter) than the others (figure as below).
+
+```{r plot-conv-features, fig.width=10, fig.height=3}
+conv_features <- conv_model %>%
+  predict(x = data_x[5L, , , , drop = FALSE]) %>%
+  drop()
+purrr::reduce(.x = 1:dim(conv_features)[3L],
+              .f = ~ {
+                .x[[.y]] <- conv_features[, , .y, drop = TRUE]
+                .x
+              },
+              .init = list()) %>%
+  purrr::map_dfr(~ {
+    .x %>%
+      `colnames<-`(1:ncol(.)) %>%
+      as.data.frame() %>%
+      tibble::rowid_to_column("y") %>%
+      tidyr::pivot_longer(cols = !c("y"),
+                          names_to = "x",
+                          values_to = "value",
+                          values_drop_na = FALSE,
+                          names_ptypes = integer())
+  },
+  .id = "feature_name") %>%
+  dplyr::mutate_at("feature_name", as.integer) %>%
+  ggplot2::ggplot(ggplot2::aes(x = x, y = y)) +
+  ggplot2::geom_tile(ggplot2::aes(fill = value),
+                     show.legend = FALSE) +
+  ggplot2::facet_wrap(ggplot2::vars(feature_name),
+                      nrow = 4L) +
+  ggplot2::scale_y_reverse() +
+  ggplot2::coord_fixed(ratio = 1) +
+  ggplot2::scale_fill_gradient(low = "#000000", high = "#FFFFFF") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.title.x = ggplot2::element_blank(),
+                 axis.ticks.x = ggplot2::element_blank(),
+                 axis.text.x = ggplot2::element_blank(),
+                 axis.title.y = ggplot2::element_blank(),
+                 axis.ticks.y = ggplot2::element_blank(),
+                 axis.text.y = ggplot2::element_blank())
+```
+
+### Model performance
+
+Training history of the final CNN model was revealed in terms of loss and accuracy (figure as below).
+
+```{r eval-model-perf, fig.width=10}
+model_history[["metrics"]] %>%
+  tibble::as_tibble() %>%
+  dplyr::select(dplyr::matches("model_[0-9]+")) %>%
+  tibble::rowid_to_column("epoch") %>%
+  tidyr::pivot_longer(cols = !c("epoch"),
+                      names_to = c("model_name", "metric"),
+                      names_sep = "(?<=[0-9])_",
+                      values_to = "value") %>%
+  dplyr::mutate(
+    metric_category = ifelse(stringr::str_starts(model_name, "val_"),
+                             "validation",
+                             "training")
+  ) %>%
+  dplyr::mutate_at("model_name", ~ stringr::str_replace(.x, "val_", "")) %>%
+  dplyr::mutate_at("metric", ~ factor(.x, levels = unique(.x))) %>%
+  split(f = .[["metric"]]) %>%
+  purrr::imap(function(plot_data, metric_name) {
+    plot_data %>%
+      ggplot2::ggplot(ggplot2::aes(x = epoch, y = value)) +
+      ggplot2::geom_line(ggplot2::aes(color = metric_category)) +
+      ggplot2::facet_wrap(facets = ggplot2::vars(model_name),
+                          nrow = 1L) +
+      ggplot2::theme_bw() +
+      ggplot2::labs(x = "Epoch",
+                    y = stringr::str_to_sentence(metric_name),
+                    color = "Category")
+  }) %>%
+  {ggpubr::ggarrange(plotlist = .,
+                     ncol = 1L,
+                     align = "hv",
+                     labels = "AUTO",
+                     legend = "right",
+                     common.legend = TRUE)}
+```
+
+### Model testing
+
+The final CNN model was tested with the remaining 100 images.
+
+```{r test-model, cache=TRUE}
+# Define a function to convert categorical matrix list to character vector
+matrices2labels <- function(matrices, class_level) {
+  matrices %>%
+    purrr::map(~ {
+      .x %>%
+        apply(MARGIN = 1L, function(x) class_level[which.max(x)]) %>%
+        as.character()
+    }) %>%
+    purrr::pmap_chr(paste0)
+}
+
+# Derive predictions and convert them to labels
+test_idx <- setdiff(seq_along(file_names), train_idx)
+model_pred <- model %>%
+  predict(x = data_x[test_idx, , , , drop = FALSE]) %>%
+  matrices2labels(class_level = class_level)
+
+# Derive overall accuracy
+model_accuracy <- purrr::map2_lgl(
+  .x = model_pred,
+  .y = data_y_labels[test_idx],
+  .f = identical
+) %>%
+  mean()
+print(model_accuracy)
+```
+
+The final CNN model achieved an overall accuracy of `r model_accuracy * 100`%. Below were two examples where the final model derived a correct prediction and a wrong one.
+
+```{r test-model-examples, cache=TRUE}
+# Define a function to plot images and print the truth and the prediction
+display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
+  image(t(data[data_idx[pred_idx], , , , drop = TRUE]),
+        xlim = c(0, 1),
+        ylim = c(1, 0),
+        col = gray.colors(n = 256L))
+  cat("Truth: ", truth[pred_idx], "\n",
+      "Pred : ", pred[pred_idx], " ",
+      if (identical(truth[pred_idx], pred[pred_idx]) == TRUE) {
+        "*"
+      } else {
+        "x"
+      }, "\n", sep = "")
+}
+
+# Display a correct prediction
+model_truth <- data_y_labels[test_idx]
+model_correct_lgl <- purrr::map2(model_pred, model_truth, identical)
+display_pred_example(data = data_x,
+                     data_idx = test_idx,
+                     pred = model_pred,
+                     truth = model_truth,
+                     pred_idx = which(model_correct_lgl == TRUE)[1L])
+
+# Display a wrong prediction
+display_pred_example(data = data_x,
+                     data_idx = test_idx,
+                     pred = model_pred,
+                     truth = model_truth,
+                     pred_idx = which(model_correct_lgl == FALSE)[1L])
+```
+
+## Discussion
+
+In this paper, we presented a CNN in R that predicts text-based CAPTCHA images at `r model_accuracy * 100`% accuracy. The final model was assembled from a common convolutional module and 5 DNN modules (one for each digit). This structure is capable of revealing how the final model was trained as a set of multi-class models, deriving separate loss and accuracy plots for each digit.
+
+Over the success of predicting 5-digit text-based CAPTCHA, there are still some food for thought. For example, will the performance of the final model improve if we unify the DNN models to enable crosstalks among weight vectors for different digits? Technically, one can use the following model as a unified DNN model and reshape `data_y` from a list to an array. At first thought, more information (resulting in more trainable parameters when printed) is sure to bring up improvements, but is it really the case (in terms of validation and testing dataset)? And why?
+
+```{r build-DNN-model-union, eval=FALSE}
+# Reshape the responses to an array for the output of unified model
+data_y_union <- purrr::reduce(
+  .x = 1:length(data_y),
+  .f = ~ {
+    .x[, .y, ] <- data_y[[.y]]
+    .x
+  },
+  .init = array(dim = dim(data_y[[1L]]) %>%
+                  purrr::prepend(length(data_y), 2L))
+)
+
+# Define a unified DNN model
+deep_model_union <- build_input_layer_like(conv_layer_flatten) %>%
+    keras::keras_model(
+      outputs = keras::layer_dense(.,
+                                   units = 64L * digit,
+                                   activation = "relu") %>%
+        keras::layer_dropout(rate = 0.5) %>%
+        keras::layer_dense(units = length(class_level) * digit,
+                           activation = NULL) %>%
+        keras::layer_reshape(target_shape = dim(data_y_union)[-1L]) %>%
+        keras::layer_activation(activation = "softmax")
+    )
+print(deep_model_union)
+```
+
+Another more challenging exploration is to break text-based CAPTCHA images without knowing the accurate number of digits. To limit the complexity of this problem, can we attempt at solving text-based images with a mixture of 1~5 digits and/or small letters? Then, how can we first decide the number of digits in the CAPTCHA image?
+
+## Conclusion
+
+In this paper, a CNN model was built in R to break 5-digit text-based CAPTCHA. The CNN model comprises a common convolutional model and 5 separate DNN models (one for each digit). The accuracy of the CNN model on a testing dataset of 100 images was `r model_accuracy * 100`% with 200 epochs of training. Starting from the point of successfully predicting these 5-digit text-based CAPTCHA images, more structures of the CNN model are worth exploring and more challenging problems are waiting ahead.
+
+## Session info
+
+This file was compiled with the following packages and versions:
+
+```{r session-info}
+utils::sessionInfo()
+```
