@@ -4,7 +4,12 @@ always_allow_html: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "README_files/figure-gfm/",
+  out.width = "100%"
+)
 ```
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
@@ -174,7 +179,6 @@ conv_model <- keras::keras_model(
     .init = input_layer)
 )
 deepviz::plot_model(conv_model)
-
 # Define a flatten layer
 conv_layer_flatten <- conv_model(input_layer) %>%
   keras::layer_flatten()
@@ -205,7 +209,6 @@ deep_models <- purrr::rerun(
 )
 length(deep_models)
 deepviz::plot_model(deep_models[[1L]])
-
 # Define output layers
 output_layers <- deep_models %>%
   purrr::map(~ {
@@ -224,7 +227,6 @@ model <- keras::keras_model(inputs = input_layer,
                               purrr::reduce(c))
 print(model)
 deepviz::plot_model(model)
-
 # Compile the final model
 model %>%
   keras::compile(optimizer = "adam",
@@ -240,7 +242,7 @@ The final CNN model was trained with `r length(file_names) - 100L` images with 2
 
 ```{r train-model, cache=TRUE, message=FALSE}
 set.seed(999L)
-train_idx <- sample.int(dim(data_x)[1L], 940L)
+train_idx <- sample.int(dim(data_x)[1L], size = length(file_names) - 100L)
 model_history <- model %>%
   keras::fit(x = data_x[train_idx, , , , drop = FALSE],
              y = data_y %>%
@@ -295,7 +297,9 @@ purrr::reduce(.x = 1:dim(conv_features)[3L],
                  axis.text.x = ggplot2::element_blank(),
                  axis.title.y = ggplot2::element_blank(),
                  axis.ticks.y = ggplot2::element_blank(),
-                 axis.text.y = ggplot2::element_blank())
+                 axis.text.y = ggplot2::element_blank(),
+                 panel.border = ggplot2::element_blank(),
+                 strip.background = ggplot2::element_rect(colour = "white"))
 ```
 
 ### Model performance
@@ -375,10 +379,6 @@ The final CNN model achieved an overall accuracy of `r model_accuracy * 100`%. B
 ```{r test-model-examples, cache=TRUE}
 # Define a function to plot images and print the truth and the prediction
 display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
-  image(t(data[data_idx[pred_idx], , , , drop = TRUE]),
-        xlim = c(0, 1),
-        ylim = c(1, 0),
-        col = gray.colors(n = 256L))
   cat("Truth: ", truth[pred_idx], "\n",
       "Pred : ", pred[pred_idx], " ",
       if (identical(truth[pred_idx], pred[pred_idx]) == TRUE) {
@@ -386,6 +386,10 @@ display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
       } else {
         "x"
       }, "\n", sep = "")
+  image(t(data[data_idx[pred_idx], , , , drop = TRUE]),
+        xlim = c(0, 1),
+        ylim = c(1, 0),
+        col = gray.colors(n = 256L))
 }
 
 # Display a correct prediction
@@ -396,7 +400,6 @@ display_pred_example(data = data_x,
                      pred = model_pred,
                      truth = model_truth,
                      pred_idx = which(model_correct_lgl == TRUE)[1L])
-
 # Display a wrong prediction
 display_pred_example(data = data_x,
                      data_idx = test_idx,

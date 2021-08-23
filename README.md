@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-23 21:30:42<br />
-**Compiled**: 2021-08-23 21:30:46
+**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-23 23:50:32<br />
+**Compiled**: 2021-08-23 23:50:35
 
 ## Introduction
 
@@ -61,16 +61,15 @@ tensorflow::set_random_seed(599L)
 purrr::walk2(.x = c("deepviz"),
              .y = c("andrie/deepviz"),
              .f = ~ check_packages(.x, repo = "github", repo_path = .y))
+#> * Package already installed: tidyverse
+#> * Package already installed: magrittr
+#> * Package already installed: rlang
+#> * Package already installed: png
+#> * Package already installed: tools
+#> * Package already installed: ggpubr
+#> * Package already installed: keras
+#> * Package already installed: deepviz
 ```
-
-    ## * Package already installed: tidyverse
-    ## * Package already installed: magrittr
-    ## * Package already installed: rlang
-    ## * Package already installed: png
-    ## * Package already installed: tools
-    ## * Package already installed: ggpubr
-    ## * Package already installed: keras
-    ## * Package already installed: deepviz
 
 Image data from a [5-digit text-based CAPTCHA
 dataset](https://www.kaggle.com/fournierp/captcha-version-2-images) were
@@ -104,18 +103,14 @@ data_x <- file_names %>%
                  },
                  .init = array(0, dim = c(length(.), dim(.[[1L]]))))
 print(dim(data_x))
-```
-
-    ## [1] 1040   50  200    1
-
-``` r
+#> [1] 1040   50  200    1
 image(t(data_x[5L, , , , drop = TRUE]),
       xlim = c(0, 1),
       ylim = c(1, 0),
       col = gray.colors(n = 256L))
 ```
 
-![](README_files/figure-gfm/load-images-1.png)<!-- -->
+<img src="README_files/figure-gfm/load-images-1.png" width="100%" />
 
 The labels were then loaded from the file names and turned them into a
 list of categorical matrices with one digit per element.
@@ -148,15 +143,10 @@ data_y_labels <- file_names %>%
 data_y <- data_y_labels %>%
   labels2matrices(class_level = class_level)
 print(length(data_y))
-```
-
-    ## [1] 5
-
-``` r
+#> [1] 5
 print(dim(data_y[[1L]]))
+#> [1] 1040   36
 ```
-
-    ## [1] 1040   36
 
 ### Modeling
 
@@ -216,12 +206,11 @@ conv_model <- keras::keras_model(
     .init = input_layer)
 )
 deepviz::plot_model(conv_model)
+#> Warning: The `x` argument of `as_tibble.matrix()` must have unique column names if `.name_repair` is omitted as of tibble 2.0.0.
+#> Using compatibility `.name_repair`.
 ```
 
-    ## Warning: The `x` argument of `as_tibble.matrix()` must have unique column names if `.name_repair` is omitted as of tibble 2.0.0.
-    ## Using compatibility `.name_repair`.
-
-![](README_files/figure-gfm/build-conv-model-1.png)<!-- -->
+<img src="README_files/figure-gfm/build-conv-model-1.png" width="100%" />
 
 ``` r
 # Define a flatten layer
@@ -258,15 +247,11 @@ deep_models <- purrr::rerun(
     )
 )
 length(deep_models)
-```
-
-    ## [1] 5
-
-``` r
+#> [1] 5
 deepviz::plot_model(deep_models[[1L]])
 ```
 
-![](README_files/figure-gfm/build-DNN-models-1.png)<!-- -->
+<img src="README_files/figure-gfm/build-DNN-models-1.png" width="100%" />
 
 ``` r
 # Define output layers
@@ -288,39 +273,35 @@ model <- keras::keras_model(inputs = input_layer,
                             outputs = output_layers %>%
                               purrr::reduce(c))
 print(model)
-```
-
-    ## Model
-    ## Model: "model_6"
-    ## ________________________________________________________________________________
-    ## Layer (type)              Output Shape      Param #  Connected to               
-    ## ================================================================================
-    ## input_1 (InputLayer)      [(None, 50, 200,  0                                   
-    ## ________________________________________________________________________________
-    ## model (Functional)        (None, 7, 25, 32) 14176    input_1[0][0]              
-    ## ________________________________________________________________________________
-    ## flatten (Flatten)         (None, 5600)      0        model[0][0]                
-    ## ________________________________________________________________________________
-    ## model_1 (Functional)      (None, 36)        360804   flatten[0][0]              
-    ## ________________________________________________________________________________
-    ## model_2 (Functional)      (None, 36)        360804   flatten[0][0]              
-    ## ________________________________________________________________________________
-    ## model_3 (Functional)      (None, 36)        360804   flatten[0][0]              
-    ## ________________________________________________________________________________
-    ## model_4 (Functional)      (None, 36)        360804   flatten[0][0]              
-    ## ________________________________________________________________________________
-    ## model_5 (Functional)      (None, 36)        360804   flatten[0][0]              
-    ## ================================================================================
-    ## Total params: 1,818,196
-    ## Trainable params: 1,818,132
-    ## Non-trainable params: 64
-    ## ________________________________________________________________________________
-
-``` r
+#> Model
+#> Model: "model_6"
+#> ________________________________________________________________________________
+#> Layer (type)              Output Shape      Param #  Connected to               
+#> ================================================================================
+#> input_1 (InputLayer)      [(None, 50, 200,  0                                   
+#> ________________________________________________________________________________
+#> model (Functional)        (None, 7, 25, 32) 14176    input_1[0][0]              
+#> ________________________________________________________________________________
+#> flatten (Flatten)         (None, 5600)      0        model[0][0]                
+#> ________________________________________________________________________________
+#> model_1 (Functional)      (None, 36)        360804   flatten[0][0]              
+#> ________________________________________________________________________________
+#> model_2 (Functional)      (None, 36)        360804   flatten[0][0]              
+#> ________________________________________________________________________________
+#> model_3 (Functional)      (None, 36)        360804   flatten[0][0]              
+#> ________________________________________________________________________________
+#> model_4 (Functional)      (None, 36)        360804   flatten[0][0]              
+#> ________________________________________________________________________________
+#> model_5 (Functional)      (None, 36)        360804   flatten[0][0]              
+#> ================================================================================
+#> Total params: 1,818,196
+#> Trainable params: 1,818,132
+#> Non-trainable params: 64
+#> ________________________________________________________________________________
 deepviz::plot_model(model)
 ```
 
-![](README_files/figure-gfm/assemble-model-1.png)<!-- -->
+<img src="README_files/figure-gfm/assemble-model-1.png" width="100%" />
 
 ``` r
 # Compile the final model
@@ -339,7 +320,7 @@ cross-validation dataset.
 
 ``` r
 set.seed(999L)
-train_idx <- sample.int(dim(data_x)[1L], 940L)
+train_idx <- sample.int(dim(data_x)[1L], size = length(file_names) - 100L)
 model_history <- model %>%
   keras::fit(x = data_x[train_idx, , , , drop = FALSE],
              y = data_y %>%
@@ -351,32 +332,31 @@ model_history <- model %>%
              validation_split = 0.2,
              view_metrics = FALSE)
 print(model_history)
+#> 
+#> Final epoch (plot to see history):
+#>                 loss: 0.552
+#>         model_1_loss: 0.05332
+#>         model_2_loss: 0.06558
+#>         model_3_loss: 0.1409
+#>         model_4_loss: 0.1702
+#>         model_5_loss: 0.1221
+#>     model_1_accuracy: 0.9827
+#>     model_2_accuracy: 0.9747
+#>     model_3_accuracy: 0.9441
+#>     model_4_accuracy: 0.9348
+#>     model_5_accuracy: 0.9548
+#>             val_loss: 4.059
+#>     val_model_1_loss: 0.005682
+#>     val_model_2_loss: 0.6227
+#>     val_model_3_loss: 0.9481
+#>     val_model_4_loss: 1.152
+#>     val_model_5_loss: 1.331
+#> val_model_1_accuracy: 1
+#> val_model_2_accuracy: 0.9468
+#> val_model_3_accuracy: 0.8883
+#> val_model_4_accuracy: 0.8245
+#> val_model_5_accuracy: 0.883
 ```
-
-    ## 
-    ## Final epoch (plot to see history):
-    ##                 loss: 0.552
-    ##         model_1_loss: 0.05332
-    ##         model_2_loss: 0.06558
-    ##         model_3_loss: 0.1409
-    ##         model_4_loss: 0.1702
-    ##         model_5_loss: 0.1221
-    ##     model_1_accuracy: 0.9827
-    ##     model_2_accuracy: 0.9747
-    ##     model_3_accuracy: 0.9441
-    ##     model_4_accuracy: 0.9348
-    ##     model_5_accuracy: 0.9548
-    ##             val_loss: 4.059
-    ##     val_model_1_loss: 0.005682
-    ##     val_model_2_loss: 0.6227
-    ##     val_model_3_loss: 0.9481
-    ##     val_model_4_loss: 1.152
-    ##     val_model_5_loss: 1.331
-    ## val_model_1_accuracy: 1
-    ## val_model_2_accuracy: 0.9468
-    ## val_model_3_accuracy: 0.8883
-    ## val_model_4_accuracy: 0.8245
-    ## val_model_5_accuracy: 0.883
 
 ### Convolutional features
 
@@ -421,10 +401,12 @@ purrr::reduce(.x = 1:dim(conv_features)[3L],
                  axis.text.x = ggplot2::element_blank(),
                  axis.title.y = ggplot2::element_blank(),
                  axis.ticks.y = ggplot2::element_blank(),
-                 axis.text.y = ggplot2::element_blank())
+                 axis.text.y = ggplot2::element_blank(),
+                 panel.border = ggplot2::element_blank(),
+                 strip.background = ggplot2::element_rect(colour = "white"))
 ```
 
-![](README_files/figure-gfm/plot-conv-features-1.png)<!-- -->
+<img src="README_files/figure-gfm/plot-conv-features-1.png" width="100%" />
 
 ### Model performance
 
@@ -467,7 +449,7 @@ model_history[["metrics"]] %>%
                      common.legend = TRUE)}
 ```
 
-![](README_files/figure-gfm/eval-model-perf-1.png)<!-- -->
+<img src="README_files/figure-gfm/eval-model-perf-1.png" width="100%" />
 
 ### Model testing
 
@@ -499,9 +481,8 @@ model_accuracy <- purrr::map2_lgl(
 ) %>%
   mean()
 print(model_accuracy)
+#> [1] 0.7
 ```
-
-    ## [1] 0.7
 
 The final CNN model achieved an overall accuracy of 70%. Below were two
 examples where the final model derived a correct prediction and a wrong
@@ -510,10 +491,6 @@ one.
 ``` r
 # Define a function to plot images and print the truth and the prediction
 display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
-  image(t(data[data_idx[pred_idx], , , , drop = TRUE]),
-        xlim = c(0, 1),
-        ylim = c(1, 0),
-        col = gray.colors(n = 256L))
   cat("Truth: ", truth[pred_idx], "\n",
       "Pred : ", pred[pred_idx], " ",
       if (identical(truth[pred_idx], pred[pred_idx]) == TRUE) {
@@ -521,6 +498,10 @@ display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
       } else {
         "x"
       }, "\n", sep = "")
+  image(t(data[data_idx[pred_idx], , , , drop = TRUE]),
+        xlim = c(0, 1),
+        ylim = c(1, 0),
+        col = gray.colors(n = 256L))
 }
 
 # Display a correct prediction
@@ -531,12 +512,11 @@ display_pred_example(data = data_x,
                      pred = model_pred,
                      truth = model_truth,
                      pred_idx = which(model_correct_lgl == TRUE)[1L])
+#> Truth: 2356g
+#> Pred : 2356g *
 ```
 
-![](README_files/figure-gfm/test-model-examples-1.png)<!-- -->
-
-    ## Truth: 2356g
-    ## Pred : 2356g *
+<img src="README_files/figure-gfm/test-model-examples-1.png" width="100%" />
 
 ``` r
 # Display a wrong prediction
@@ -545,12 +525,11 @@ display_pred_example(data = data_x,
                      pred = model_pred,
                      truth = model_truth,
                      pred_idx = which(model_correct_lgl == FALSE)[1L])
+#> Truth: 226md
+#> Pred : 226nd x
 ```
 
-![](README_files/figure-gfm/test-model-examples-2.png)<!-- -->
-
-    ## Truth: 226md
-    ## Pred : 226nd x
+<img src="README_files/figure-gfm/test-model-examples-2.png" width="100%" />
 
 ## Discussion
 
@@ -620,52 +599,51 @@ This file was compiled with the following packages and versions:
 
 ``` r
 utils::sessionInfo()
+#> R version 4.0.5 (2021-03-31)
+#> Platform: x86_64-w64-mingw32/x64 (64-bit)
+#> Running under: Windows 10 x64 (build 19042)
+#> 
+#> Matrix products: default
+#> 
+#> locale:
+#> [1] LC_COLLATE=Chinese (Simplified)_China.936 
+#> [2] LC_CTYPE=Chinese (Simplified)_China.936   
+#> [3] LC_MONETARY=Chinese (Simplified)_China.936
+#> [4] LC_NUMERIC=C                              
+#> [5] LC_TIME=Chinese (Simplified)_China.936    
+#> 
+#> attached base packages:
+#> [1] tools     stats     graphics  grDevices utils     datasets  methods  
+#> [8] base     
+#> 
+#> other attached packages:
+#>  [1] deepviz_0.0.1.9000 keras_2.4.0        ggpubr_0.4.0       png_0.1-7         
+#>  [5] rlang_0.4.10       magrittr_2.0.1     forcats_0.5.0      stringr_1.4.0     
+#>  [9] dplyr_1.0.7        purrr_0.3.4        readr_1.3.1        tidyr_1.1.3       
+#> [13] tibble_3.1.3       ggplot2_3.3.5      tidyverse_1.3.0   
+#> 
+#> loaded via a namespace (and not attached):
+#>  [1] fs_1.5.0           lubridate_1.7.9    webshot_0.5.2      RColorBrewer_1.1-2
+#>  [5] httr_1.4.2         backports_1.1.8    utf8_1.1.4         R6_2.4.1          
+#>  [9] DBI_1.1.0          colorspace_1.4-1   withr_2.4.1        processx_3.5.1    
+#> [13] gridExtra_2.3      tidyselect_1.1.0   curl_4.3           compiler_4.0.5    
+#> [17] cli_2.4.0          rvest_0.3.5        xml2_1.3.2         labeling_0.3      
+#> [21] scales_1.1.1       callr_3.6.0        tfruns_1.5.0       rappdirs_0.3.3    
+#> [25] digest_0.6.25      foreign_0.8-81     rmarkdown_2.3      rio_0.5.27        
+#> [29] base64enc_0.1-3    pkgconfig_2.0.3    htmltools_0.5.0    dbplyr_1.4.4      
+#> [33] htmlwidgets_1.5.3  readxl_1.3.1       rstudioapi_0.13    farver_2.0.3      
+#> [37] visNetwork_2.0.9   generics_0.0.2     jsonlite_1.7.2     tensorflow_2.5.0  
+#> [41] zip_2.1.1          car_3.0-11         Matrix_1.3-2       Rcpp_1.0.7        
+#> [45] munsell_0.5.0      fansi_0.4.2        viridis_0.5.1      abind_1.4-5       
+#> [49] reticulate_1.20    lifecycle_1.0.0    stringi_1.4.6      whisker_0.4       
+#> [53] yaml_2.2.1         carData_3.0-4      ggraph_2.0.5       MASS_7.3-53.1     
+#> [57] grid_4.0.5         blob_1.2.1         ggrepel_0.8.2      crayon_1.3.4      
+#> [61] lattice_0.20-41    cowplot_1.1.1      graphlayouts_0.7.1 haven_2.3.1       
+#> [65] hms_0.5.3          ps_1.6.0           zeallot_0.1.0      knitr_1.29        
+#> [69] pillar_1.6.2       igraph_1.2.6       ggsignif_0.6.2     reprex_0.3.0      
+#> [73] glue_1.4.1         evaluate_0.14      data.table_1.13.0  modelr_0.1.8      
+#> [77] tweenr_1.0.2       vctrs_0.3.8        cellranger_1.1.0   polyclip_1.10-0   
+#> [81] gtable_0.3.0       assertthat_0.2.1   ggforce_0.3.3      xfun_0.15         
+#> [85] openxlsx_4.2.4     broom_0.7.9        tidygraph_1.2.0    rstatix_0.7.0     
+#> [89] viridisLite_0.3.0  DiagrammeR_1.0.6.1 ellipsis_0.3.2
 ```
-
-    ## R version 4.0.5 (2021-03-31)
-    ## Platform: x86_64-w64-mingw32/x64 (64-bit)
-    ## Running under: Windows 10 x64 (build 19042)
-    ## 
-    ## Matrix products: default
-    ## 
-    ## locale:
-    ## [1] LC_COLLATE=Chinese (Simplified)_China.936 
-    ## [2] LC_CTYPE=Chinese (Simplified)_China.936   
-    ## [3] LC_MONETARY=Chinese (Simplified)_China.936
-    ## [4] LC_NUMERIC=C                              
-    ## [5] LC_TIME=Chinese (Simplified)_China.936    
-    ## 
-    ## attached base packages:
-    ## [1] tools     stats     graphics  grDevices utils     datasets  methods  
-    ## [8] base     
-    ## 
-    ## other attached packages:
-    ##  [1] deepviz_0.0.1.9000 keras_2.4.0        ggpubr_0.4.0       png_0.1-7         
-    ##  [5] rlang_0.4.10       magrittr_2.0.1     forcats_0.5.0      stringr_1.4.0     
-    ##  [9] dplyr_1.0.7        purrr_0.3.4        readr_1.3.1        tidyr_1.1.3       
-    ## [13] tibble_3.1.3       ggplot2_3.3.5      tidyverse_1.3.0   
-    ## 
-    ## loaded via a namespace (and not attached):
-    ##  [1] fs_1.5.0           lubridate_1.7.9    webshot_0.5.2      RColorBrewer_1.1-2
-    ##  [5] httr_1.4.2         backports_1.1.8    utf8_1.1.4         R6_2.4.1          
-    ##  [9] DBI_1.1.0          colorspace_1.4-1   withr_2.4.1        processx_3.5.1    
-    ## [13] gridExtra_2.3      tidyselect_1.1.0   curl_4.3           compiler_4.0.5    
-    ## [17] cli_2.4.0          rvest_0.3.5        xml2_1.3.2         labeling_0.3      
-    ## [21] scales_1.1.1       callr_3.6.0        tfruns_1.5.0       rappdirs_0.3.3    
-    ## [25] digest_0.6.25      foreign_0.8-81     rmarkdown_2.3      rio_0.5.27        
-    ## [29] base64enc_0.1-3    pkgconfig_2.0.3    htmltools_0.5.0    dbplyr_1.4.4      
-    ## [33] htmlwidgets_1.5.3  readxl_1.3.1       rstudioapi_0.13    farver_2.0.3      
-    ## [37] visNetwork_2.0.9   generics_0.0.2     jsonlite_1.7.2     tensorflow_2.5.0  
-    ## [41] zip_2.1.1          car_3.0-11         Matrix_1.3-2       Rcpp_1.0.7        
-    ## [45] munsell_0.5.0      fansi_0.4.2        viridis_0.5.1      abind_1.4-5       
-    ## [49] reticulate_1.20    lifecycle_1.0.0    stringi_1.4.6      whisker_0.4       
-    ## [53] yaml_2.2.1         carData_3.0-4      ggraph_2.0.5       MASS_7.3-53.1     
-    ## [57] grid_4.0.5         blob_1.2.1         ggrepel_0.8.2      crayon_1.3.4      
-    ## [61] lattice_0.20-41    cowplot_1.1.1      graphlayouts_0.7.1 haven_2.3.1       
-    ## [65] hms_0.5.3          ps_1.6.0           zeallot_0.1.0      knitr_1.29        
-    ## [69] pillar_1.6.2       igraph_1.2.6       ggsignif_0.6.2     reprex_0.3.0      
-    ## [73] glue_1.4.1         evaluate_0.14      data.table_1.13.0  modelr_0.1.8      
-    ## [77] tweenr_1.0.2       vctrs_0.3.8        cellranger_1.1.0   polyclip_1.10-0   
-    ## [81] gtable_0.3.0       assertthat_0.2.1   ggforce_0.3.3      xfun_0.15         
-    ## [85] openxlsx_4.2.4     broom_0.7.9        tidygraph_1.2.0    rstatix_0.7.0     
-    ## [89] viridisLite_0.3.0  DiagrammeR_1.0.6.1 ellipsis_0.3.2
