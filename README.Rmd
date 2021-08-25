@@ -479,7 +479,7 @@ display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
 # Display some prediction results
 model_truth <- data_y_labels[test_idx]
 model_correct_lgl <- purrr::map2(model_pred, model_truth, identical)
-purrr::map(seq(2L, 97L, 5L), ~ {
+purrr::map(seq(2L, 97L, by = 5L), ~ {
   display_pred_example(data = data_x[test_idx, , , , drop = FALSE],
                        pred = model_pred,
                        truth = model_truth,

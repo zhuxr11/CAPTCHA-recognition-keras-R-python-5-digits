@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-25 18:59:49<br />
-**Compiled**: 2021-08-25 18:59:52
+**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-25 19:11:32<br />
+**Compiled**: 2021-08-25 19:11:35
 
 ## Introduction
 
@@ -588,7 +588,7 @@ display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
 # Display some prediction results
 model_truth <- data_y_labels[test_idx]
 model_correct_lgl <- purrr::map2(model_pred, model_truth, identical)
-purrr::map(seq(2L, 97L, 5L), ~ {
+purrr::map(seq(2L, 97L, by = 5L), ~ {
   display_pred_example(data = data_x[test_idx, , , , drop = FALSE],
                        pred = model_pred,
                        truth = model_truth,
@@ -708,10 +708,11 @@ utils::sessionInfo()
 #> [57] grid_4.0.5         ggrepel_0.8.2      crayon_1.4.1       lattice_0.20-41   
 #> [61] cowplot_1.1.1      graphlayouts_0.7.1 haven_2.4.3        gridtext_0.1.4    
 #> [65] hms_1.1.0          ps_1.6.0           zeallot_0.1.0      knitr_1.29        
-#> [69] pillar_1.6.2       igraph_1.2.6       ggsignif_0.6.2     reprex_2.0.1      
-#> [73] glue_1.4.2         evaluate_0.14      data.table_1.13.0  modelr_0.1.8      
-#> [77] tweenr_1.0.2       vctrs_0.3.8        tzdb_0.1.2         cellranger_1.1.0  
-#> [81] polyclip_1.10-0    gtable_0.3.0       assertthat_0.2.1   ggforce_0.3.3     
-#> [85] xfun_0.15          openxlsx_4.2.4     tidygraph_1.2.0    broom_0.7.9       
-#> [89] rstatix_0.7.0      viridisLite_0.3.0  DiagrammeR_1.0.6.1 ellipsis_0.3.2
+#> [69] pillar_1.6.2       igraph_1.2.6       markdown_1.1       ggsignif_0.6.2    
+#> [73] codetools_0.2-18   reprex_2.0.1       glue_1.4.2         evaluate_0.14     
+#> [77] data.table_1.13.0  modelr_0.1.8       tweenr_1.0.2       vctrs_0.3.8       
+#> [81] tzdb_0.1.2         cellranger_1.1.0   polyclip_1.10-0    gtable_0.3.0      
+#> [85] assertthat_0.2.1   ggforce_0.3.3      xfun_0.15          openxlsx_4.2.4    
+#> [89] tidygraph_1.2.0    broom_0.7.9        rstatix_0.7.0      viridisLite_0.3.0 
+#> [93] DiagrammeR_1.0.6.1 ellipsis_0.3.2
 ```
