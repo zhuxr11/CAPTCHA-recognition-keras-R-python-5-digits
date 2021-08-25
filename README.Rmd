@@ -20,13 +20,13 @@ knitr::opts_chunk$set(
 
 ## Introduction
 
-CAPTCHA stands for "**C**ompletely **A**utomated **P**ublic **T**uring test to tell **C**omputers and **H**umans **A**part". There are mainly two kinds of CAPTCHA systems, the text-based one and the image-based one. The text-based CAPTCHA is the earlier version that usually contains a known number of digits and letters. To escape the detection by optical character recognition (OCR), the text-based CAPTCHA images usually contains distortion, blurring and noise (such as random deletion lines). The text-based images are now retreating from applications, since they are known to be breakable by deep learning technology, such as convolutional neural network (CNN), as demonstrated by [a study in python](https://medium.com/@manvi./captcha-recognition-using-convolutional-neural-network-d191ef91330e). This paper will go through this process in R.
+CAPTCHA stands for "**C**ompletely **A**utomated **P**ublic **T**uring test to tell **C**omputers and **H**umans **A**part". There are mainly two kinds of CAPTCHA systems, the text-based one and the image-based one. The text-based CAPTCHA is the earlier version that usually contains a known number of digits and letters. To escape the detection by optical character recognition (OCR), the text-based CAPTCHA images usually contains distortion, blurring and noise (such as random deletion lines). The text-based images are now being depricated, since they are known to be breakable by deep learning technology, such as convolutional neural network (CNN), as demonstrated by [a study in python](https://medium.com/@manvi./captcha-recognition-using-convolutional-neural-network-d191ef91330e). This paper will attempt this process in R.
 
 ## Methods
 
 ### Data preparation
 
-To facilitate the analyses in the paper, we need to load the following packages: `tidyverse`, `magrittr`, `rlang`, `keras`, `png`, `tools`, `ggpubr` and `deepviz`. Please note that the `keras` package requires a working `tensorflow` R package with python support.
+To facilitate the analyses in the paper, we need to load the following packages: `tidyverse`, `magrittr`, `rlang`, `keras`, `png`, `tools`, `ggpubr`, `ggtext` and `deepviz`. Please note that the `keras` package requires a working `tensorflow` R package with python support.
 
 ```{r libraries, message=FALSE, warning=FALSE, results='hold'}
 check_packages <- function(pkg_name, repo = c("cran", "github"), repo_path) {
@@ -53,7 +53,8 @@ check_packages <- function(pkg_name, repo = c("cran", "github"), repo_path) {
 
 # CRAN packages (load "keras" last to set tensorflow seed right afterwards)
 check_packages("tidyverse", repo = "cran")
-purrr::walk(.x = c("magrittr", "rlang", "png", "tools", "ggpubr", "keras"),
+purrr::walk(.x = c("magrittr", "rlang", "png", "tools",
+                   "ggpubr", "ggtext", "keras"),
             .f = check_packages, repo = "cran")
 tensorflow::set_random_seed(599L)
 
@@ -63,7 +64,7 @@ purrr::walk2(.x = c("deepviz"),
              .f = ~ check_packages(.x, repo = "github", repo_path = .y))
 ```
 
-Image data from a [5-digit text-based CAPTCHA dataset](https://www.kaggle.com/fournierp/captcha-version-2-images) were first loaded with the `samples` folder unzipped and placed under the current working directory. A total of `r list.files("samples", pattern = "\\.png", recursive = FALSE) %>% length()` png images were turned into grayscale (like the one below) and put into a three-dimensional array where the first one as samples, the second one as pixel rows and the third as pixel columns.
+Image data from a [5-digit text-based CAPTCHA dataset](https://www.kaggle.com/fournierp/captcha-version-2-images) were first loaded with the `samples` folder unzipped and placed under the current working directory. A total of `r list.files("samples", pattern = "\\.png", recursive = FALSE) %>% length()` png images were turned into grayscale and put into a three-dimensional array where the first one as samples, the second one as pixel rows and the third as pixel columns.
 
 ```{r load-images, cache=TRUE}
 # Load image file names
@@ -77,22 +78,95 @@ data_x <- file_names %>%
   purrr::map(~ .x %>%
                png::readPNG() %>%
                # Select the first 3 color channels as RGB
-               `[`(, , 1:3, drop = FALSE) %>%
+               `[`(, , 1L:3L, drop = FALSE) %>%
                # Turn the image into grayscale
-               apply(MARGIN = 1:2, mean, na.rm = TRUE) %>%
+               apply(MARGIN = 1L:2L, mean, na.rm = TRUE) %>%
                keras::array_reshape(dim = c(dim(.), 1L))) %>%
   # Turn list into array
-  purrr::reduce2(.y = 1:length(.), 
+  purrr::reduce2(.y = 1L:length(.), 
                  .f = function(array., matrix., idx) {
                    array.[idx, , , ] <- matrix.
                    array.
                  },
                  .init = array(0, dim = c(length(.), dim(.[[1L]]))))
 print(dim(data_x))
-image(t(data_x[5L, , , , drop = TRUE]),
-      xlim = c(0, 1),
-      ylim = c(1, 0),
-      col = gray.colors(n = 256L))
+```
+
+Some sample CAPTCHA image were visualized as below.
+
+```{r plot-image, fig.height=1}
+# Define a function to convert matrix to ggplot image
+matrix2gg_image <- function(
+  matrix.,
+  decimal = TRUE,
+  title = NULL,
+  title_style = ggplot2::element_text(hjust = 0.5),
+  plot_margin = ggplot2::unit(c(5.5, 5.5, 5.5, 5.5), "points")
+  ) {
+  mat_rgb <- matrix. %>%
+    apply(MARGIN = 1L:2L, function(x) {
+      if (length(x) == 1L) {
+        color_chr <- rep(x, 3L)
+      } else if (length(x) == 3L) {
+        color_chr <- x
+      } else {
+        stop("The third dimension of matrix. should be 1L or 3L")
+      }
+      color_chr <- color_chr %>%
+        .int2hex_color(decimal = decimal) %>%
+        paste(collapse = "") %>%
+        {paste0("#", .)}
+    })
+  plot_data <- mat_rgb %>%
+    as.data.frame() %>%
+    tibble::rowid_to_column("y") %>%
+    tidyr::pivot_longer(cols = !c("y"),
+                        names_to = "x",
+                        values_to = "fill") %>%
+    dplyr::mutate_at("x", ~ .x %>%
+                       stringr::str_extract_all("[0-9]+") %>%
+                       as.numeric()) %>%
+    # Reverse y so that image starts from upper left corner
+    dplyr::mutate_at("y", ~ min(.x) + max(.x) - .x)
+  plot_obj <- ggplot2::ggplot(plot_data, ggplot2::aes(x = x, y = y)) +
+    ggplot2::geom_tile(ggplot2::aes(fill = fill),
+                       show.legend = FALSE) +
+    ggplot2::scale_x_continuous(expand = c(0, 0)) +
+    ggplot2::scale_y_continuous(expand = c(0, 0)) +
+    ggplot2::coord_equal(ratio = 1) +
+    ggplot2::scale_fill_manual(values = plot_data[["fill"]] %>%
+                                 unique() %>%
+                                 purrr::set_names(.)) +
+    ggplot2::theme_void() +
+    ggplot2::theme(plot.margin = plot_margin)
+  if (is.null(title) == FALSE) {
+    plot_obj +
+      ggplot2::ggtitle(title) +
+      ggplot2::theme(plot.title = title_style)
+  } else {
+    plot_obj
+  }
+}
+.int2hex_color <- function(x, decimal = TRUE) {
+  if (decimal == TRUE) x <- as.integer(x * 255L)
+  stopifnot(is.integer(x) == TRUE)
+  x %>%
+    as.hexmode() %>%
+    as.character() %>%
+    stringr::str_pad(width = 2L, pad = "0")
+}
+
+# Plot sample images
+purrr::reduce(.x = c(5L, 246L, 987L),
+              .f = ~ {
+                .x[[.y]] <- data_x[.y, , , , drop = TRUE]
+                .x
+              },
+              .init = list()) %>%
+  purrr::compact() %>%
+  purrr::map(matrix2gg_image, decimal = TRUE, title = NULL) %>%
+  {gridExtra::arrangeGrob(grobs = ., nrow = 1L)} %>%
+  grid::grid.draw()
 ```
 
 The labels were then loaded from the file names and turned them into a list of categorical matrices with one digit per element.
@@ -101,7 +175,7 @@ The labels were then loaded from the file names and turned them into a list of c
 # Define the number of digits and letters per CAPTCHA
 digit <- 5L
 # Define a dictionary of digits and letters present in CAPTCHA
-class_level <- c(0:9, letters)
+class_level <- c(0L:9L, letters)
 
 # Define a function to convert character vector to categorical matrix list
 labels2matrices <- function(labels, class_level) {
@@ -260,46 +334,49 @@ print(model_history)
 
 When an image (shown above) went through the convolutional model, various features were abstracted and some were more active (brighter) than the others (figure as below).
 
-```{r plot-conv-features, fig.width=10, fig.height=3}
+```{r plot-conv-features, fig.height=4}
+# Derive convolutional features
+conv_image_matrix <- data_x[5L, , , , drop = FALSE]
 conv_features <- conv_model %>%
-  predict(x = data_x[5L, , , , drop = FALSE]) %>%
+  predict(x = conv_image_matrix) %>%
   drop()
-purrr::reduce(.x = 1:dim(conv_features)[3L],
-              .f = ~ {
-                .x[[.y]] <- conv_features[, , .y, drop = TRUE]
-                .x
-              },
-              .init = list()) %>%
-  purrr::map_dfr(~ {
-    .x %>%
-      `colnames<-`(1:ncol(.)) %>%
-      as.data.frame() %>%
-      tibble::rowid_to_column("y") %>%
-      tidyr::pivot_longer(cols = !c("y"),
-                          names_to = "x",
-                          values_to = "value",
-                          values_drop_na = FALSE,
-                          names_ptypes = integer())
+
+# Convert convolutional matrices into images
+conv_plots <- purrr::reduce(
+  .x = 1:dim(conv_features)[3L],
+  .f = ~ {
+    .x[[.y]] <- conv_features[, , .y, drop = TRUE]
+    .x
   },
-  .id = "feature_name") %>%
-  dplyr::mutate_at("feature_name", as.integer) %>%
-  ggplot2::ggplot(ggplot2::aes(x = x, y = y)) +
-  ggplot2::geom_tile(ggplot2::aes(fill = value),
-                     show.legend = FALSE) +
-  ggplot2::facet_wrap(ggplot2::vars(feature_name),
-                      nrow = 4L) +
-  ggplot2::scale_y_reverse() +
-  ggplot2::coord_fixed(ratio = 1) +
-  ggplot2::scale_fill_gradient(low = "#000000", high = "#FFFFFF") +
-  ggplot2::theme_bw() +
-  ggplot2::theme(axis.title.x = ggplot2::element_blank(),
-                 axis.ticks.x = ggplot2::element_blank(),
-                 axis.text.x = ggplot2::element_blank(),
-                 axis.title.y = ggplot2::element_blank(),
-                 axis.ticks.y = ggplot2::element_blank(),
-                 axis.text.y = ggplot2::element_blank(),
-                 panel.border = ggplot2::element_blank(),
-                 strip.background = ggplot2::element_rect(colour = "white"))
+  .init = list()
+) %>%
+  purrr::map2(paste0("Feature ", 1:length(.)), ~ {
+    .x %>%
+      matrix2gg_image(
+        decimal = TRUE,
+        title = .y,
+        title_style = ggplot2::element_text(hjust = 0.5),
+        plot_margin = ggplot2::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+      )
+  })
+
+# Arrange images
+conv_image_matrix %>%
+  drop() %>%
+  matrix2gg_image(decimal = TRUE, title = "The original image") %>%
+  list() %>%
+  append(conv_plots) %>%
+  {gridExtra::arrangeGrob(
+    grobs = .,
+    layout_matrix = rbind(
+      cbind(
+        matrix(rep(1L, 4L), nrow = 2L, ncol = 2L),
+        matrix(2L:9L, nrow = 2L, ncol = 4L, byrow = TRUE)
+      ),
+      matrix(10L:33L, nrow = 4L, ncol = 6L, byrow = TRUE)
+    )
+  )} %>%
+  grid::grid.draw()
 ```
 
 ### Model performance
@@ -374,38 +451,42 @@ model_accuracy <- purrr::map2_lgl(
 print(model_accuracy)
 ```
 
-The final CNN model achieved an overall accuracy of `r model_accuracy * 100`%. Below were two examples where the final model derived a correct prediction and a wrong one.
+The final CNN model achieved an overall accuracy of `r model_accuracy * 100`%. Below were some example prediction results from the final CNN model.
 
-```{r test-model-examples, cache=TRUE}
+```{r test-model-examples, cache=TRUE, fig.height=3}
 # Define a function to plot images and print the truth and the prediction
 display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
-  cat("Truth: ", truth[pred_idx], "\n",
-      "Pred : ", pred[pred_idx], " ",
-      if (identical(truth[pred_idx], pred[pred_idx]) == TRUE) {
-        "*"
-      } else {
-        "x"
-      }, "\n", sep = "")
-  image(t(data[data_idx[pred_idx], , , , drop = TRUE]),
-        xlim = c(0, 1),
-        ylim = c(1, 0),
-        col = gray.colors(n = 256L))
+  # Decide whether the prediction is correct
+  pred_correct <- identical(pred[pred_idx], truth[pred_idx])
+  # Format an HTML-style plot title
+  plot_title <- paste0(
+    "truth: ", truth[pred_idx], "<br>",
+    "pred : ", "<span style = 'color:",
+    if (pred_correct == TRUE) "MediumSeaGreen" else "Tomato", "'>",
+    pred[pred_idx], "</span>"
+  )
+  data[pred_idx, , , , drop = TRUE] %>%
+    matrix2gg_image(
+      decimal = TRUE,
+      title = plot_title,
+      title_style = ggtext::element_markdown(family = "mono",
+                                             hjust = 0.5,
+                                             size = 10),
+      plot_margin = ggplot2::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+    )
 }
 
-# Display a correct prediction
+# Display some prediction results
 model_truth <- data_y_labels[test_idx]
 model_correct_lgl <- purrr::map2(model_pred, model_truth, identical)
-display_pred_example(data = data_x,
-                     data_idx = test_idx,
-                     pred = model_pred,
-                     truth = model_truth,
-                     pred_idx = which(model_correct_lgl == TRUE)[1L])
-# Display a wrong prediction
-display_pred_example(data = data_x,
-                     data_idx = test_idx,
-                     pred = model_pred,
-                     truth = model_truth,
-                     pred_idx = which(model_correct_lgl == FALSE)[1L])
+purrr::map(seq(2L, 97L, 5L), ~ {
+  display_pred_example(data = data_x[test_idx, , , , drop = FALSE],
+                       pred = model_pred,
+                       truth = model_truth,
+                       pred_idx = .x)
+}) %>%
+  {gridExtra::arrangeGrob(grobs = ., ncol = 5L)} %>%
+  grid::grid.draw()
 ```
 
 ## Discussion
@@ -438,7 +519,6 @@ deep_model_union <- build_input_layer_like(conv_layer_flatten) %>%
         keras::layer_reshape(target_shape = dim(data_y_union)[-1L]) %>%
         keras::layer_activation(activation = "softmax")
     )
-print(deep_model_union)
 ```
 
 Another more challenging exploration is to break text-based CAPTCHA images without knowing the accurate number of digits. To limit the complexity of this problem, can we attempt at solving text-based images with a mixture of 1~5 digits and/or small letters? Then, how can we first decide the number of digits in the CAPTCHA image?
