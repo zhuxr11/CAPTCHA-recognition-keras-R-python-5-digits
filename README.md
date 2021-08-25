@@ -1,8 +1,20 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-25 19:11:32<br />
-**Compiled**: 2021-08-25 19:11:35
+**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-26 02:00:56<br />
+**Compiled**: 2021-08-26 02:00:59
+
+## Abstract
+
+CAPTCHA is widely used to detect automated spamming on websites. In
+recent past, CAPTCHA images usually text-based, consisting of digits and
+letters with proper distortion, blurring and noise. With the development
+of deep learning, these CAPTCHA images become breakable with
+convolutional neural network (CNN), as demonstrated in python. This
+paper attempted the process in R with 940 images as training dataset and
+another 100 images as testing dataset, achieving an accuracy of 70%.
+With the successful prediction of the CAPTCHA images, more possibilities
+and challenges were suggested for further thinking.
 
 ## Introduction
 
@@ -184,7 +196,7 @@ purrr::reduce(.x = c(5L, 246L, 987L),
   grid::grid.draw()
 ```
 
-<img src="README_files/figure-gfm/plot-image-1.png" width="100%" />
+<img src="README_files/plot-image-1.png" width="100%" />
 
 The labels were then loaded from the file names and turned them into a
 list of categorical matrices with one digit per element.
@@ -282,7 +294,7 @@ conv_model <- keras::keras_model(
 deepviz::plot_model(conv_model)
 ```
 
-<img src="README_files/figure-gfm/build-conv-model-1.png" width="100%" />
+<img src="README_files/build-conv-model-1.png" width="100%" />
 
 ``` r
 # Define a flatten layer
@@ -323,7 +335,7 @@ length(deep_models)
 deepviz::plot_model(deep_models[[1L]])
 ```
 
-<img src="README_files/figure-gfm/build-DNN-models-1.png" width="100%" />
+<img src="README_files/build-DNN-models-1.png" width="100%" />
 
 ``` r
 # Define output layers
@@ -373,7 +385,7 @@ print(model)
 deepviz::plot_model(model)
 ```
 
-<img src="README_files/figure-gfm/assemble-model-1.png" width="100%" />
+<img src="README_files/assemble-model-1.png" width="100%" />
 
 ``` r
 # Compile the final model
@@ -433,8 +445,9 @@ print(model_history)
 ### Convolutional features
 
 When an image (shown above) went through the convolutional model,
-various features were abstracted and some were more active (brighter)
-than the others (figure as below).
+various features were abstracted. For visualization of feature patterns,
+the convoluted values were linearly scaled to range \[0,1\] with
+positive coefficient and rendered in grayscale (figures as below).
 
 ``` r
 # Derive convolutional features
@@ -443,11 +456,13 @@ conv_features <- conv_model %>%
   predict(x = conv_image_matrix) %>%
   drop()
 
-# Convert convolutional matrices into images
+# Convert convolutional matrices into images (with 0-1 scaling)
+conv_features_scale <- range(as.numeric(conv_features)) %>%
+  {(conv_features - .[1L]) / diff(.)}
 conv_plots <- purrr::reduce(
-  .x = 1:dim(conv_features)[3L],
+  .x = 1:dim(conv_features_scale)[3L],
   .f = ~ {
-    .x[[.y]] <- conv_features[, , .y, drop = TRUE]
+    .x[[.y]] <- conv_features_scale[, , .y, drop = FALSE]
     .x
   },
   .init = list()
@@ -465,7 +480,8 @@ conv_plots <- purrr::reduce(
 # Arrange images
 conv_image_matrix %>%
   drop() %>%
-  matrix2gg_image(decimal = TRUE, title = "The original image") %>%
+  keras::array_reshape(dim = c(dim(.), 1L)) %>%
+  matrix2gg_image(decimal = TRUE, title = "Original image") %>%
   list() %>%
   append(conv_plots) %>%
   {gridExtra::arrangeGrob(
@@ -481,7 +497,7 @@ conv_image_matrix %>%
   grid::grid.draw()
 ```
 
-<img src="README_files/figure-gfm/plot-conv-features-1.png" width="100%" />
+<img src="README_files/plot-conv-features-1.png" width="100%" />
 
 ### Model performance
 
@@ -524,7 +540,7 @@ model_history[["metrics"]] %>%
                      common.legend = TRUE)}
 ```
 
-<img src="README_files/figure-gfm/eval-model-perf-1.png" width="100%" />
+<img src="README_files/eval-model-perf-1.png" width="100%" />
 
 ### Model testing
 
@@ -564,17 +580,17 @@ example prediction results from the final CNN model.
 
 ``` r
 # Define a function to plot images and print the truth and the prediction
-display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
+display_pred_example <- function(data, pred, truth, index) {
   # Decide whether the prediction is correct
-  pred_correct <- identical(pred[pred_idx], truth[pred_idx])
+  pred_correct <- identical(pred[index], truth[index])
   # Format an HTML-style plot title
   plot_title <- paste0(
-    "truth: ", truth[pred_idx], "<br>",
+    "truth: ", truth[index], "<br>",
     "pred : ", "<span style = 'color:",
     if (pred_correct == TRUE) "MediumSeaGreen" else "Tomato", "'>",
-    pred[pred_idx], "</span>"
+    pred[index], "</span>"
   )
-  data[pred_idx, , , , drop = TRUE] %>%
+  data[index, , , , drop = TRUE] %>%
     matrix2gg_image(
       decimal = TRUE,
       title = plot_title,
@@ -592,13 +608,13 @@ purrr::map(seq(2L, 97L, by = 5L), ~ {
   display_pred_example(data = data_x[test_idx, , , , drop = FALSE],
                        pred = model_pred,
                        truth = model_truth,
-                       pred_idx = .x)
+                       index = .x)
 }) %>%
   {gridExtra::arrangeGrob(grobs = ., ncol = 5L)} %>%
   grid::grid.draw()
 ```
 
-<img src="README_files/figure-gfm/test-model-examples-1.png" width="100%" />
+<img src="README_files/test-model-examples-1.png" width="100%" />
 
 ## Discussion
 

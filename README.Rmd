@@ -4,12 +4,20 @@ always_allow_html: true
 ---
 
 ```{r setup, include=FALSE}
+# This sets the overall chunk and output style
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  fig.path = "README_files/figure-gfm/",
+  fig.path = "README_files/",
   out.width = "100%"
 )
+
+# This hook enables reference to variables created later on (e.g. in abstract)
+# To refer to such variables, use <%= variable %> or <% code %> (?brew::brew)
+knitr::knit_hooks$set(document = function(x){
+  x1 = paste(x, collapse = '\n')
+  paste(capture.output(brew::brew(text = x1)), collapse = '\n')
+})
 ```
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
@@ -17,6 +25,10 @@ knitr::opts_chunk$set(
 **Authors**: Xiurui Zhu<br />
 **Modified**: `r file.info("README.Rmd")$mtime`<br />
 **Compiled**: `r Sys.time()`
+
+## Abstract
+
+CAPTCHA is widely used to detect automated spamming on websites. In recent past, CAPTCHA images usually text-based, consisting of digits and letters with proper distortion, blurring and noise. With the development of deep learning, these CAPTCHA images become breakable with convolutional neural network (CNN), as demonstrated in python. This paper attempted the process in R with <%= length(file_names) - 100L %> images as training dataset and another 100 images as testing dataset, achieving an accuracy of <%= model_accuracy * 100 %>%. With the successful prediction of the CAPTCHA images, more possibilities and challenges were suggested for further thinking.
 
 ## Introduction
 
@@ -332,7 +344,7 @@ print(model_history)
 
 ### Convolutional features
 
-When an image (shown above) went through the convolutional model, various features were abstracted and some were more active (brighter) than the others (figure as below).
+When an image (shown above) went through the convolutional model, various features were abstracted. For visualization of feature patterns, the convoluted values were linearly scaled to range [0,1] with positive coefficient and rendered in grayscale (figures as below).
 
 ```{r plot-conv-features, fig.height=4}
 # Derive convolutional features
@@ -341,11 +353,13 @@ conv_features <- conv_model %>%
   predict(x = conv_image_matrix) %>%
   drop()
 
-# Convert convolutional matrices into images
+# Convert convolutional matrices into images (with 0-1 scaling)
+conv_features_scale <- range(as.numeric(conv_features)) %>%
+  {(conv_features - .[1L]) / diff(.)}
 conv_plots <- purrr::reduce(
-  .x = 1:dim(conv_features)[3L],
+  .x = 1:dim(conv_features_scale)[3L],
   .f = ~ {
-    .x[[.y]] <- conv_features[, , .y, drop = TRUE]
+    .x[[.y]] <- conv_features_scale[, , .y, drop = FALSE]
     .x
   },
   .init = list()
@@ -363,7 +377,8 @@ conv_plots <- purrr::reduce(
 # Arrange images
 conv_image_matrix %>%
   drop() %>%
-  matrix2gg_image(decimal = TRUE, title = "The original image") %>%
+  keras::array_reshape(dim = c(dim(.), 1L)) %>%
+  matrix2gg_image(decimal = TRUE, title = "Original image") %>%
   list() %>%
   append(conv_plots) %>%
   {gridExtra::arrangeGrob(
@@ -455,17 +470,17 @@ The final CNN model achieved an overall accuracy of `r model_accuracy * 100`%. B
 
 ```{r test-model-examples, cache=TRUE, fig.height=3}
 # Define a function to plot images and print the truth and the prediction
-display_pred_example <- function(data, data_idx, pred, truth, pred_idx) {
+display_pred_example <- function(data, pred, truth, index) {
   # Decide whether the prediction is correct
-  pred_correct <- identical(pred[pred_idx], truth[pred_idx])
+  pred_correct <- identical(pred[index], truth[index])
   # Format an HTML-style plot title
   plot_title <- paste0(
-    "truth: ", truth[pred_idx], "<br>",
+    "truth: ", truth[index], "<br>",
     "pred : ", "<span style = 'color:",
     if (pred_correct == TRUE) "MediumSeaGreen" else "Tomato", "'>",
-    pred[pred_idx], "</span>"
+    pred[index], "</span>"
   )
-  data[pred_idx, , , , drop = TRUE] %>%
+  data[index, , , , drop = TRUE] %>%
     matrix2gg_image(
       decimal = TRUE,
       title = plot_title,
@@ -483,7 +498,7 @@ purrr::map(seq(2L, 97L, by = 5L), ~ {
   display_pred_example(data = data_x[test_idx, , , , drop = FALSE],
                        pred = model_pred,
                        truth = model_truth,
-                       pred_idx = .x)
+                       index = .x)
 }) %>%
   {gridExtra::arrangeGrob(grobs = ., ncol = 5L)} %>%
   grid::grid.draw()
