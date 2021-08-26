@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-26 02:00:56<br />
-**Compiled**: 2021-08-26 02:00:59
+**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-26 17:59:25<br />
+**Compiled**: 2021-08-26 17:59:29
 
 ## Abstract
 
@@ -128,7 +128,7 @@ matrix2gg_image <- function(
   decimal = TRUE,
   title = NULL,
   title_style = ggplot2::element_text(hjust = 0.5),
-  plot_margin = ggplot2::unit(c(5.5, 5.5, 5.5, 5.5), "points")
+  plot_margin = grid::unit(c(5.5, 5.5, 5.5, 5.5), "points")
   ) {
   mat_rgb <- matrix. %>%
     apply(MARGIN = 1L:2L, function(x) {
@@ -330,7 +330,7 @@ deep_models <- purrr::rerun(
                            activation = "softmax")
     )
 )
-length(deep_models)
+print(length(deep_models))
 #> [1] 5
 deepviz::plot_model(deep_models[[1L]])
 ```
@@ -403,8 +403,13 @@ The final CNN model was trained with 940 images with 20% of them as
 cross-validation dataset.
 
 ``` r
+# Define training dataset
 set.seed(999L)
 train_idx <- sample.int(dim(data_x)[1L], size = length(file_names) - 100L)
+print(length(train_idx))
+#> [1] 940
+
+# Train model
 model_history <- model %>%
   keras::fit(x = data_x[train_idx, , , , drop = FALSE],
              y = data_y %>%
@@ -450,19 +455,27 @@ the convoluted values were linearly scaled to range \[0,1\] with
 positive coefficient and rendered in grayscale (figures as below).
 
 ``` r
-# Derive convolutional features
-conv_image_matrix <- data_x[5L, , , , drop = FALSE]
 conv_features <- conv_model %>%
-  predict(x = conv_image_matrix) %>%
-  drop()
+  predict(x = data_x)
+print(dim(conv_features))
+#> [1] 1040    7   25   32
+```
 
-# Convert convolutional matrices into images (with 0-1 scaling)
-conv_features_scale <- range(as.numeric(conv_features)) %>%
-  {(conv_features - .[1L]) / diff(.)}
+``` r
+# Select an image
+image_idx <- 5L
+
+# Scale selected convolutional features
+sel_conv_features_rescale <- conv_features[image_idx, , , , drop = TRUE] %>%
+  scales::rescale(to = c(0, 1))
+print(dim(sel_conv_features_rescale))
+#> [1]  7 25 32
+
+# Convert selected convolutional matrices into images
 conv_plots <- purrr::reduce(
-  .x = 1:dim(conv_features_scale)[3L],
+  .x = 1:dim(sel_conv_features_rescale)[3L],
   .f = ~ {
-    .x[[.y]] <- conv_features_scale[, , .y, drop = FALSE]
+    .x[[.y]] <- sel_conv_features_rescale[, , .y, drop = FALSE]
     .x
   },
   .init = list()
@@ -472,27 +485,48 @@ conv_plots <- purrr::reduce(
       matrix2gg_image(
         decimal = TRUE,
         title = .y,
-        title_style = ggplot2::element_text(hjust = 0.5),
-        plot_margin = ggplot2::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+        title_style = ggplot2::element_text(
+          hjust = 0.5,
+          size = 10,
+          margin = ggplot2::margin(0, 0, 2, 0, unit = "pt")
+        ),
+        plot_margin = grid::unit(c(0.5, 3.5, 0.5, 3.5), "points")
       )
   })
 
+# Define layout matrix
+layout_matrix <- rbind(
+  cbind(
+    # Original image
+    matrix(rep(1L, 4L), nrow = 2L, ncol = 2L),
+    # Convolutional features 1~8
+    matrix(2L:9L, nrow = 2L, ncol = 4L, byrow = TRUE)
+  ),
+  # Convolutional features 9~32
+  matrix(10L:33L, nrow = 4L, ncol = 6L, byrow = TRUE)
+)
+print(dim(layout_matrix))
+#> [1] 6 6
+
 # Arrange images
-conv_image_matrix %>%
+data_x[image_idx, , , , drop = TRUE] %>%
   drop() %>%
   keras::array_reshape(dim = c(dim(.), 1L)) %>%
-  matrix2gg_image(decimal = TRUE, title = "Original image") %>%
+  matrix2gg_image(
+    decimal = TRUE,
+    title = "Original image",
+    title_style = ggplot2::element_text(
+      hjust = 0.5,
+      margin = ggplot2::margin(0, 0, 3, 0, unit = "pt")
+    ),
+    plot_margin = grid::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+  ) %>%
   list() %>%
   append(conv_plots) %>%
   {gridExtra::arrangeGrob(
     grobs = .,
-    layout_matrix = rbind(
-      cbind(
-        matrix(rep(1L, 4L), nrow = 2L, ncol = 2L),
-        matrix(2L:9L, nrow = 2L, ncol = 4L, byrow = TRUE)
-      ),
-      matrix(10L:33L, nrow = 4L, ncol = 6L, byrow = TRUE)
-    )
+    layout_matrix = layout_matrix,
+    heights = grid::unit(rep(3, nrow(layout_matrix)), "line")
   )} %>%
   grid::grid.draw()
 ```
@@ -505,6 +539,7 @@ Training history of the final CNN model was revealed in terms of loss
 and accuracy (figure as below).
 
 ``` r
+# Plot training history: loss and metrics
 model_history[["metrics"]] %>%
   tibble::as_tibble() %>%
   dplyr::select(dplyr::matches("model_[0-9]+")) %>%
@@ -544,7 +579,8 @@ model_history[["metrics"]] %>%
 
 ### Model testing
 
-The final CNN model was tested with the remaining 100 images.
+Tested with the remaining 100 images, the final CNN model achieved an
+overall accuracy of 70%.
 
 ``` r
 # Define a function to convert categorical matrix list to character vector
@@ -558,8 +594,12 @@ matrices2labels <- function(matrices, class_level) {
     purrr::pmap_chr(paste0)
 }
 
-# Derive predictions and convert them to labels
+# Define testing dataset
 test_idx <- setdiff(seq_along(file_names), train_idx)
+print(length(test_idx))
+#> [1] 100
+
+# Derive predictions and convert them to labels
 model_pred <- model %>%
   predict(x = data_x[test_idx, , , , drop = FALSE]) %>%
   matrices2labels(class_level = class_level)
@@ -575,8 +615,8 @@ print(model_accuracy)
 #> [1] 0.7
 ```
 
-The final CNN model achieved an overall accuracy of 70%. Below were some
-example prediction results from the final CNN model.
+Below were the prediction results of some example images from the
+testing dataset.
 
 ``` r
 # Define a function to plot images and print the truth and the prediction
@@ -594,10 +634,13 @@ display_pred_example <- function(data, pred, truth, index) {
     matrix2gg_image(
       decimal = TRUE,
       title = plot_title,
-      title_style = ggtext::element_markdown(family = "mono",
-                                             hjust = 0.5,
-                                             size = 10),
-      plot_margin = ggplot2::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+      title_style = ggtext::element_markdown(
+        family = "mono",
+        hjust = 0.5,
+        size = 10,
+        margin = ggplot2::margin(0, 0, 3, 0, unit = "pt")
+      ),
+      plot_margin = grid::unit(c(3.5, 3.5, 3.5, 3.5), "points")
     )
 }
 
@@ -724,11 +767,10 @@ utils::sessionInfo()
 #> [57] grid_4.0.5         ggrepel_0.8.2      crayon_1.4.1       lattice_0.20-41   
 #> [61] cowplot_1.1.1      graphlayouts_0.7.1 haven_2.4.3        gridtext_0.1.4    
 #> [65] hms_1.1.0          ps_1.6.0           zeallot_0.1.0      knitr_1.29        
-#> [69] pillar_1.6.2       igraph_1.2.6       markdown_1.1       ggsignif_0.6.2    
-#> [73] codetools_0.2-18   reprex_2.0.1       glue_1.4.2         evaluate_0.14     
-#> [77] data.table_1.13.0  modelr_0.1.8       tweenr_1.0.2       vctrs_0.3.8       
-#> [81] tzdb_0.1.2         cellranger_1.1.0   polyclip_1.10-0    gtable_0.3.0      
-#> [85] assertthat_0.2.1   ggforce_0.3.3      xfun_0.15          openxlsx_4.2.4    
-#> [89] tidygraph_1.2.0    broom_0.7.9        rstatix_0.7.0      viridisLite_0.3.0 
-#> [93] DiagrammeR_1.0.6.1 ellipsis_0.3.2
+#> [69] pillar_1.6.2       igraph_1.2.6       ggsignif_0.6.2     reprex_2.0.1      
+#> [73] glue_1.4.2         evaluate_0.14      data.table_1.13.0  modelr_0.1.8      
+#> [77] tweenr_1.0.2       vctrs_0.3.8        tzdb_0.1.2         cellranger_1.1.0  
+#> [81] polyclip_1.10-0    gtable_0.3.0       assertthat_0.2.1   ggforce_0.3.3     
+#> [85] xfun_0.15          openxlsx_4.2.4     tidygraph_1.2.0    broom_0.7.9       
+#> [89] rstatix_0.7.0      viridisLite_0.3.0  DiagrammeR_1.0.6.1 ellipsis_0.3.2
 ```

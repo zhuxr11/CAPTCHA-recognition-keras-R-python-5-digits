@@ -28,7 +28,7 @@ knitr::knit_hooks$set(document = function(x){
 
 ## Abstract
 
-CAPTCHA is widely used to detect automated spamming on websites. In recent past, CAPTCHA images usually text-based, consisting of digits and letters with proper distortion, blurring and noise. With the development of deep learning, these CAPTCHA images become breakable with convolutional neural network (CNN), as demonstrated in python. This paper attempted the process in R with <%= length(file_names) - 100L %> images as training dataset and another 100 images as testing dataset, achieving an accuracy of <%= model_accuracy * 100 %>%. With the successful prediction of the CAPTCHA images, more possibilities and challenges were suggested for further thinking.
+CAPTCHA is widely used to detect automated spamming on websites. In recent past, CAPTCHA images usually text-based, consisting of digits and letters with proper distortion, blurring and noise. With the development of deep learning, these CAPTCHA images become breakable with convolutional neural network (CNN), as demonstrated in python. This paper attempted the process in R with <%= length(train_idx) %> images as training dataset and another <%= length(test_idx) %> images as testing dataset, achieving an accuracy of <%= model_accuracy * 100 %>%. With the successful prediction of the CAPTCHA images, more possibilities and challenges were suggested for further thinking.
 
 ## Introduction
 
@@ -113,7 +113,7 @@ matrix2gg_image <- function(
   decimal = TRUE,
   title = NULL,
   title_style = ggplot2::element_text(hjust = 0.5),
-  plot_margin = ggplot2::unit(c(5.5, 5.5, 5.5, 5.5), "points")
+  plot_margin = grid::unit(c(5.5, 5.5, 5.5, 5.5), "points")
   ) {
   mat_rgb <- matrix. %>%
     apply(MARGIN = 1L:2L, function(x) {
@@ -293,7 +293,7 @@ deep_models <- purrr::rerun(
                            activation = "softmax")
     )
 )
-length(deep_models)
+print(length(deep_models))
 deepviz::plot_model(deep_models[[1L]])
 # Define output layers
 output_layers <- deep_models %>%
@@ -324,11 +324,15 @@ model %>%
 
 ### Model training
 
-The final CNN model was trained with `r length(file_names) - 100L` images with 20% of them as cross-validation dataset.
+The final CNN model was trained with <%= length(train_idx) %> images with 20% of them as cross-validation dataset.
 
 ```{r train-model, cache=TRUE, message=FALSE}
+# Define training dataset
 set.seed(999L)
 train_idx <- sample.int(dim(data_x)[1L], size = length(file_names) - 100L)
+print(length(train_idx))
+
+# Train model
 model_history <- model %>%
   keras::fit(x = data_x[train_idx, , , , drop = FALSE],
              y = data_y %>%
@@ -346,20 +350,26 @@ print(model_history)
 
 When an image (shown above) went through the convolutional model, various features were abstracted. For visualization of feature patterns, the convoluted values were linearly scaled to range [0,1] with positive coefficient and rendered in grayscale (figures as below).
 
-```{r plot-conv-features, fig.height=4}
-# Derive convolutional features
-conv_image_matrix <- data_x[5L, , , , drop = FALSE]
+```{r pred-conv-features, cache=TRUE}
 conv_features <- conv_model %>%
-  predict(x = conv_image_matrix) %>%
-  drop()
+  predict(x = data_x)
+print(dim(conv_features))
+```
 
-# Convert convolutional matrices into images (with 0-1 scaling)
-conv_features_scale <- range(as.numeric(conv_features)) %>%
-  {(conv_features - .[1L]) / diff(.)}
+```{r plot-conv-features, fig.height=4}
+# Select an image
+image_idx <- 5L
+
+# Scale selected convolutional features
+sel_conv_features_rescale <- conv_features[image_idx, , , , drop = TRUE] %>%
+  scales::rescale(to = c(0, 1))
+print(dim(sel_conv_features_rescale))
+
+# Convert selected convolutional matrices into images
 conv_plots <- purrr::reduce(
-  .x = 1:dim(conv_features_scale)[3L],
+  .x = 1:dim(sel_conv_features_rescale)[3L],
   .f = ~ {
-    .x[[.y]] <- conv_features_scale[, , .y, drop = FALSE]
+    .x[[.y]] <- sel_conv_features_rescale[, , .y, drop = FALSE]
     .x
   },
   .init = list()
@@ -369,27 +379,47 @@ conv_plots <- purrr::reduce(
       matrix2gg_image(
         decimal = TRUE,
         title = .y,
-        title_style = ggplot2::element_text(hjust = 0.5),
-        plot_margin = ggplot2::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+        title_style = ggplot2::element_text(
+          hjust = 0.5,
+          size = 10,
+          margin = ggplot2::margin(0, 0, 2, 0, unit = "pt")
+        ),
+        plot_margin = grid::unit(c(0.5, 3.5, 0.5, 3.5), "points")
       )
   })
 
+# Define layout matrix
+layout_matrix <- rbind(
+  cbind(
+    # Original image
+    matrix(rep(1L, 4L), nrow = 2L, ncol = 2L),
+    # Convolutional features 1~8
+    matrix(2L:9L, nrow = 2L, ncol = 4L, byrow = TRUE)
+  ),
+  # Convolutional features 9~32
+  matrix(10L:33L, nrow = 4L, ncol = 6L, byrow = TRUE)
+)
+print(dim(layout_matrix))
+
 # Arrange images
-conv_image_matrix %>%
+data_x[image_idx, , , , drop = TRUE] %>%
   drop() %>%
   keras::array_reshape(dim = c(dim(.), 1L)) %>%
-  matrix2gg_image(decimal = TRUE, title = "Original image") %>%
+  matrix2gg_image(
+    decimal = TRUE,
+    title = "Original image",
+    title_style = ggplot2::element_text(
+      hjust = 0.5,
+      margin = ggplot2::margin(0, 0, 3, 0, unit = "pt")
+    ),
+    plot_margin = grid::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+  ) %>%
   list() %>%
   append(conv_plots) %>%
   {gridExtra::arrangeGrob(
     grobs = .,
-    layout_matrix = rbind(
-      cbind(
-        matrix(rep(1L, 4L), nrow = 2L, ncol = 2L),
-        matrix(2L:9L, nrow = 2L, ncol = 4L, byrow = TRUE)
-      ),
-      matrix(10L:33L, nrow = 4L, ncol = 6L, byrow = TRUE)
-    )
+    layout_matrix = layout_matrix,
+    heights = grid::unit(rep(3, nrow(layout_matrix)), "line")
   )} %>%
   grid::grid.draw()
 ```
@@ -399,6 +429,7 @@ conv_image_matrix %>%
 Training history of the final CNN model was revealed in terms of loss and accuracy (figure as below).
 
 ```{r eval-model-perf, fig.width=10}
+# Plot training history: loss and metrics
 model_history[["metrics"]] %>%
   tibble::as_tibble() %>%
   dplyr::select(dplyr::matches("model_[0-9]+")) %>%
@@ -436,7 +467,7 @@ model_history[["metrics"]] %>%
 
 ### Model testing
 
-The final CNN model was tested with the remaining 100 images.
+Tested with the remaining <%= length(test_idx) %> images, the final CNN model achieved an overall accuracy of <%= model_accuracy * 100 %>%. 
 
 ```{r test-model, cache=TRUE}
 # Define a function to convert categorical matrix list to character vector
@@ -450,8 +481,11 @@ matrices2labels <- function(matrices, class_level) {
     purrr::pmap_chr(paste0)
 }
 
-# Derive predictions and convert them to labels
+# Define testing dataset
 test_idx <- setdiff(seq_along(file_names), train_idx)
+print(length(test_idx))
+
+# Derive predictions and convert them to labels
 model_pred <- model %>%
   predict(x = data_x[test_idx, , , , drop = FALSE]) %>%
   matrices2labels(class_level = class_level)
@@ -466,7 +500,7 @@ model_accuracy <- purrr::map2_lgl(
 print(model_accuracy)
 ```
 
-The final CNN model achieved an overall accuracy of `r model_accuracy * 100`%. Below were some example prediction results from the final CNN model.
+Below were the prediction results of some example images from the testing dataset.
 
 ```{r test-model-examples, cache=TRUE, fig.height=3}
 # Define a function to plot images and print the truth and the prediction
@@ -484,10 +518,13 @@ display_pred_example <- function(data, pred, truth, index) {
     matrix2gg_image(
       decimal = TRUE,
       title = plot_title,
-      title_style = ggtext::element_markdown(family = "mono",
-                                             hjust = 0.5,
-                                             size = 10),
-      plot_margin = ggplot2::unit(c(3.5, 3.5, 3.5, 3.5), "points")
+      title_style = ggtext::element_markdown(
+        family = "mono",
+        hjust = 0.5,
+        size = 10,
+        margin = ggplot2::margin(0, 0, 3, 0, unit = "pt")
+      ),
+      plot_margin = grid::unit(c(3.5, 3.5, 3.5, 3.5), "points")
     )
 }
 
@@ -540,7 +577,7 @@ Another more challenging exploration is to break text-based CAPTCHA images witho
 
 ## Conclusion
 
-In this paper, a CNN model was built in R to break 5-digit text-based CAPTCHA. The CNN model comprises a common convolutional model and 5 separate DNN models (one for each digit). The accuracy of the CNN model on a testing dataset of 100 images was `r model_accuracy * 100`% with 200 epochs of training. Starting from the point of successfully predicting these 5-digit text-based CAPTCHA images, more structures of the CNN model are worth exploring and more challenging problems are waiting ahead.
+In this paper, a CNN model was built in R to break 5-digit text-based CAPTCHA. The CNN model comprises a common convolutional model and 5 separate DNN models (one for each digit). The accuracy of the CNN model on a testing dataset of <%= length(test_idx) %> images was `r model_accuracy * 100`% with 200 epochs of training. Starting from the point of successfully predicting these 5-digit text-based CAPTCHA images, more structures of the CNN model are worth exploring and more challenging problems are waiting ahead.
 
 ## Session info
 
