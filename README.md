@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br /> **Modified**: 2021-08-26 17:59:25<br />
-**Compiled**: 2021-08-26 17:59:29
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-08-26 22:36:30<br />
+**Compiled**: 2021-08-26 22:36:33
 
 ## Abstract
 
@@ -11,10 +11,11 @@ recent past, CAPTCHA images usually text-based, consisting of digits and
 letters with proper distortion, blurring and noise. With the development
 of deep learning, these CAPTCHA images become breakable with
 convolutional neural network (CNN), as demonstrated in python. This
-paper attempted the process in R with 940 images as training dataset and
-another 100 images as testing dataset, achieving an accuracy of 70%.
-With the successful prediction of the CAPTCHA images, more possibilities
-and challenges were suggested for further thinking.
+paper attempted the process of breaking 5-digit CAPTCHA images in R with
+940 samples as training dataset and another 100 ones as testing dataset,
+achieving an accuracy of 70%. With the successful prediction of the
+CAPTCHA images, more possibilities and challenges were suggested for
+further thinking.
 
 ## Introduction
 

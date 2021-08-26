@@ -22,13 +22,13 @@ knitr::knit_hooks$set(document = function(x){
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Authors**: Xiurui Zhu<br />
+**Author**: Xiurui Zhu<br />
 **Modified**: `r file.info("README.Rmd")$mtime`<br />
 **Compiled**: `r Sys.time()`
 
 ## Abstract
 
-CAPTCHA is widely used to detect automated spamming on websites. In recent past, CAPTCHA images usually text-based, consisting of digits and letters with proper distortion, blurring and noise. With the development of deep learning, these CAPTCHA images become breakable with convolutional neural network (CNN), as demonstrated in python. This paper attempted the process in R with <%= length(train_idx) %> images as training dataset and another <%= length(test_idx) %> images as testing dataset, achieving an accuracy of <%= model_accuracy * 100 %>%. With the successful prediction of the CAPTCHA images, more possibilities and challenges were suggested for further thinking.
+CAPTCHA is widely used to detect automated spamming on websites. In recent past, CAPTCHA images usually text-based, consisting of digits and letters with proper distortion, blurring and noise. With the development of deep learning, these CAPTCHA images become breakable with convolutional neural network (CNN), as demonstrated in python. This paper attempted the process of breaking <%= digit %>-digit CAPTCHA images in R with <%= length(train_idx) %> samples as training dataset and another <%= length(test_idx) %> ones as testing dataset, achieving an accuracy of <%= model_accuracy * 100 %>%. With the successful prediction of the CAPTCHA images, more possibilities and challenges were suggested for further thinking.
 
 ## Introduction
 
@@ -76,7 +76,7 @@ purrr::walk2(.x = c("deepviz"),
              .f = ~ check_packages(.x, repo = "github", repo_path = .y))
 ```
 
-Image data from a [5-digit text-based CAPTCHA dataset](https://www.kaggle.com/fournierp/captcha-version-2-images) were first loaded with the `samples` folder unzipped and placed under the current working directory. A total of `r list.files("samples", pattern = "\\.png", recursive = FALSE) %>% length()` png images were turned into grayscale and put into a three-dimensional array where the first one as samples, the second one as pixel rows and the third as pixel columns.
+Image data from a [<%= digit %>-digit text-based CAPTCHA dataset](https://www.kaggle.com/fournierp/captcha-version-2-images) were first loaded with the `samples` folder unzipped and placed under the current working directory. A total of `r list.files("samples", pattern = "\\.png", recursive = FALSE) %>% length()` png images were turned into grayscale and put into a three-dimensional array where the first one as samples, the second one as pixel rows and the third as pixel columns.
 
 ```{r load-images, cache=TRUE}
 # Load image file names
@@ -543,9 +543,9 @@ purrr::map(seq(2L, 97L, by = 5L), ~ {
 
 ## Discussion
 
-In this paper, we presented a CNN in R that predicts text-based CAPTCHA images at `r model_accuracy * 100`% accuracy. The final model was assembled from a common convolutional module and 5 DNN modules (one for each digit). This structure is capable of revealing how the final model was trained as a set of multi-class models, deriving separate loss and accuracy plots for each digit.
+In this paper, we presented a CNN in R that predicts text-based CAPTCHA images at `r model_accuracy * 100`% accuracy. The final model was assembled from a common convolutional module and `r digit` DNN modules (one for each digit). This structure is capable of revealing how the final model was trained as a set of multi-class models, deriving separate loss and accuracy plots for each digit.
 
-Over the success of predicting 5-digit text-based CAPTCHA, there are still some food for thought. For example, will the performance of the final model improve if we unify the DNN models to enable crosstalks among weight vectors for different digits? Technically, one can use the following model as a unified DNN model and reshape `data_y` from a list to an array. At first thought, more information (resulting in more trainable parameters when printed) is sure to bring up improvements, but is it really the case (in terms of validation and testing dataset)? And why?
+Over the success of predicting `r digit`-digit text-based CAPTCHA, there are still some food for thought. For example, will the performance of the final model improve if we unify the DNN models to enable crosstalks among weight vectors for different digits? Technically, one can use the following model as a unified DNN model and reshape `data_y` from a list to an array. At first thought, more information (resulting in more trainable parameters when printed) is sure to bring up improvements, but is it really the case (in terms of validation and testing dataset)? And why?
 
 ```{r build-DNN-model-union, eval=FALSE}
 # Reshape the responses to an array for the output of unified model
@@ -573,11 +573,11 @@ deep_model_union <- build_input_layer_like(conv_layer_flatten) %>%
     )
 ```
 
-Another more challenging exploration is to break text-based CAPTCHA images without knowing the accurate number of digits. To limit the complexity of this problem, can we attempt at solving text-based images with a mixture of 1~5 digits and/or small letters? Then, how can we first decide the number of digits in the CAPTCHA image?
+Another more challenging exploration is to break text-based CAPTCHA images without knowing the accurate number of digits. To limit the complexity of this problem, can we attempt at solving text-based images with a mixture of 1~`r digit` digits and/or small letters? Then, how can we first decide the number of digits in the CAPTCHA image?
 
 ## Conclusion
 
-In this paper, a CNN model was built in R to break 5-digit text-based CAPTCHA. The CNN model comprises a common convolutional model and 5 separate DNN models (one for each digit). The accuracy of the CNN model on a testing dataset of <%= length(test_idx) %> images was `r model_accuracy * 100`% with 200 epochs of training. Starting from the point of successfully predicting these 5-digit text-based CAPTCHA images, more structures of the CNN model are worth exploring and more challenging problems are waiting ahead.
+In this paper, a CNN model was built in R to break `r digit`-digit text-based CAPTCHA. The CNN model comprises a common convolutional model and `r digit` separate DNN models (one for each digit). The accuracy of the CNN model on a testing dataset of <%= length(test_idx) %> images was `r model_accuracy * 100`% with 200 epochs of training. Starting from the point of successfully predicting these `r digit`-digit text-based CAPTCHA images, more structures of the CNN model are worth exploring and more challenging problems are waiting ahead.
 
 ## Session info
 
