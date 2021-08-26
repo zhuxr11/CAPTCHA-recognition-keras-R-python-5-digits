@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-08-26 22:36:30<br />
-**Compiled**: 2021-08-26 22:36:33
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-08-26 22:44:29<br />
+**Compiled**: 2021-08-26 22:44:33
 
 ## Abstract
 
@@ -42,6 +42,7 @@ packages: `tidyverse`, `magrittr`, `rlang`, `keras`, `png`, `tools`,
 requires a working `tensorflow` R package with python support.
 
 ``` r
+# Define a function to check, install (if necessary) and load packages
 check_packages <- function(pkg_name, repo = c("cran", "github"), repo_path) {
   repo <- match.arg(repo)
   # Load installed packages

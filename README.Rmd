@@ -41,6 +41,7 @@ CAPTCHA stands for "**C**ompletely **A**utomated **P**ublic **T**uring test to t
 To facilitate the analyses in the paper, we need to load the following packages: `tidyverse`, `magrittr`, `rlang`, `keras`, `png`, `tools`, `ggpubr`, `ggtext` and `deepviz`. Please note that the `keras` package requires a working `tensorflow` R package with python support.
 
 ```{r libraries, message=FALSE, warning=FALSE, results='hold'}
+# Define a function to check, install (if necessary) and load packages
 check_packages <- function(pkg_name, repo = c("cran", "github"), repo_path) {
   repo <- match.arg(repo)
   # Load installed packages
