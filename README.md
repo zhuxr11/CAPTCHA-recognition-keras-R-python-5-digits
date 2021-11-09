@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-08-26 22:44:29<br />
-**Compiled**: 2021-08-26 22:44:33
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-09 14:40:31<br />
+**Compiled**: 2021-11-09 14:40:34
 
 ## Abstract
 
@@ -245,7 +245,7 @@ multiple digits to predict for each CAPTCHA image, we would build the
 model including a common convolutional model, a common flatten layer and
 multiple DNN models (one for each digit).
 
-#### Convulutional model
+#### Convolutional model
 
 The convolutional model (diagram as below) was built by adding multiple
 modules of convolutional and max-pooling layers, optionally adding a
@@ -761,7 +761,7 @@ utils::sessionInfo()
 #> [25] digest_0.6.25      foreign_0.8-81     rmarkdown_2.3      rio_0.5.27        
 #> [29] base64enc_0.1-3    pkgconfig_2.0.3    htmltools_0.5.0    dbplyr_2.1.1      
 #> [33] htmlwidgets_1.5.3  readxl_1.3.1       rstudioapi_0.13    farver_2.0.3      
-#> [37] visNetwork_2.0.9   generics_0.0.2     jsonlite_1.7.2     tensorflow_2.5.0  
+#> [37] visNetwork_2.0.9   generics_0.1.0     jsonlite_1.7.2     tensorflow_2.5.0  
 #> [41] zip_2.1.1          car_3.0-11         Matrix_1.3-2       Rcpp_1.0.7        
 #> [45] munsell_0.5.0      fansi_0.4.2        viridis_0.5.1      abind_1.4-5       
 #> [49] reticulate_1.20    lifecycle_1.0.0    stringi_1.4.6      whisker_0.4       
