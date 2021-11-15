@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-09 14:40:31<br />
-**Compiled**: 2021-11-09 14:40:34
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-15 08:46:39<br />
+**Compiled**: 2021-11-15 08:46:41
 
 ## Abstract
 
@@ -30,16 +30,18 @@ The text-based images are now being depricated, since they are known to
 be breakable by deep learning technology, such as convolutional neural
 network (CNN), as demonstrated by [a study in
 python](https://medium.com/@manvi./captcha-recognition-using-convolutional-neural-network-d191ef91330e).
-This paper will attempt this process in R.
+This paper will attempt this process in a mixture of R and python.
 
 ## Methods
 
 ### Data preparation
 
 To facilitate the analyses in the paper, we need to load the following
-packages: `tidyverse`, `magrittr`, `rlang`, `keras`, `png`, `tools`,
-`ggpubr`, `ggtext` and `deepviz`. Please note that the `keras` package
-requires a working `tensorflow` R package with python support.
+packages in R: `tidyverse`, `magrittr`, `rlang`, `reticulate`, `png`,
+`tools`, `ggpubr` and `ggtext`. We also need the following packages
+installed in python: `numpy`, `tensorflow`, `keras` and `pydot`.
+Furthermore, we need [graphviz](https://graphviz.gitlab.io/download/) to
+visualize model structure.
 
 ``` r
 # Define a function to check, install (if necessary) and load packages
@@ -65,26 +67,121 @@ check_packages <- function(pkg_name, repo = c("cran", "github"), repo_path) {
   )
 }
 
-# CRAN packages (load "keras" last to set tensorflow seed right afterwards)
+# CRAN packages
 check_packages("tidyverse", repo = "cran")
-purrr::walk(.x = c("magrittr", "rlang", "png", "tools",
-                   "ggpubr", "ggtext", "keras"),
+purrr::walk(.x = c("magrittr", "rlang", "reticulate", "png", "tools",
+                   "ggpubr", "ggtext"),
             .f = check_packages, repo = "cran")
-tensorflow::set_random_seed(599L)
 
-# Github packages
-purrr::walk2(.x = c("deepviz"),
-             .y = c("andrie/deepviz"),
-             .f = ~ check_packages(.x, repo = "github", repo_path = .y))
+# Initialize python connection with reticulate
+check_python <- function() {
+  stopifnot(reticulate::py_available(initialize = TRUE) == TRUE)
+}
+check_python()
 #> * Package already installed: tidyverse
 #> * Package already installed: magrittr
 #> * Package already installed: rlang
+#> * Package already installed: reticulate
 #> * Package already installed: png
 #> * Package already installed: tools
 #> * Package already installed: ggpubr
 #> * Package already installed: ggtext
-#> * Package already installed: keras
-#> * Package already installed: deepviz
+```
+
+``` python
+import numpy as np
+import os
+from matplotlib import pyplot as plt
+import tensorflow as tf
+# Set random seed right after importing tensorflow
+tf.random.set_seed(599)
+from tensorflow import keras
+from tensorflow.keras import layers
+import session_info
+```
+
+To visualize model structure, we need to handle this process in an
+independent python script, since `reticulate` does not facilitate
+python-generated plots that need `graphviz`.
+
+``` r
+# Define a function that plots model structure with python script
+#' @param py_model Python model object, usually as py$<model_name>.
+#' @param file_name Output file name for model structure plot (PNG format).
+#' @param show_shapes Logical indicating whether layer shapes are shown.
+#' @param show_layer_names Logical indicating whether layer names are shown.
+#' @param verbose Logical indicating whether detailed messages are printed.
+#' @inheritDotParams knitr::include_graphics -path
+visualize_model_rmd <- function(
+  py_model,
+  file_name,
+  show_shapes = TRUE,
+  show_layer_names = TRUE,
+  verbose = TRUE,
+  ...
+) {
+  # Process directory
+  if (dir.exists(dirname(file_name)) == FALSE) {
+    if (verbose == TRUE) {
+      message("* Creating directory: ", dirname(file_name))
+    }
+    dir.create(dirname(file_name), recursive = TRUE)
+  }
+  # Get python model variable name (format: c("$", "py", py_model_name))
+  py_model_name <- as.character(substitute(py_model)) %>%
+    dplyr::last()
+  # Save model with python command
+  py_model_file_name <- tempfile(fileext = "")
+  if (verbose == TRUE) {
+    message("* Saving model to: ", py_model_file_name)
+  }
+  reticulate::py_eval(
+    paste0(
+      py_model_name,
+      ".save(\"",
+      py_model_file_name %>%
+        stringr::str_replace_all("\\\\", "/"),
+      "\")"
+    )
+  )
+  # Write a python script for model visualization
+  py_file_name <- tempfile(fileext = ".py")
+  if (verbose == TRUE) {
+    message("* Writing python script to: ", py_file_name)
+  }
+  py_command <- paste(
+    "import numpy as np",
+    "import os",
+    "from tensorflow import keras",
+    paste0("os.chdir('", getwd(), "')"),
+    paste0("model = keras.models.load_model(r'", py_model_file_name, "')"),
+    "keras.utils.plot_model(",
+    "  model = model,",
+    paste0("  to_file = '", file_name, "',"),
+    paste0("  show_shapes = ", stringr::str_to_sentence(show_shapes), ","),
+    paste0("  show_layer_names = ", stringr::str_to_sentence(show_layer_names)),
+    ")",
+    "",
+    sep = "\n"
+  )
+  py_file <- file(py_file_name, open = "w")
+  write(py_command, py_file)
+  close(py_file)
+  # Execute the python file
+  if (verbose == TRUE) {
+    message("* Executing python script...")
+  }
+  invisible(system(paste0("python ", py_file_name)))
+  # Clean up
+  if (unlink(py_model_file_name, recursive = TRUE) == 0 && verbose == TRUE) {
+    message("* Cleaned up model file: ", py_model_file_name)
+  }
+  if (unlink(py_file_name) == 0 && verbose == TRUE) {
+    message("* Cleaned up script file: ", py_file_name)
+  }
+  # Include the graphics
+  knitr::include_graphics(file_name, ...)
+}
 ```
 
 Image data from a [5-digit text-based CAPTCHA
@@ -109,7 +206,7 @@ data_x <- file_names %>%
                `[`(, , 1L:3L, drop = FALSE) %>%
                # Turn the image into grayscale
                apply(MARGIN = 1L:2L, mean, na.rm = TRUE) %>%
-               keras::array_reshape(dim = c(dim(.), 1L))) %>%
+               reticulate::array_reshape(dim = c(dim(.), 1L))) %>%
   # Turn list into array
   purrr::reduce2(.y = 1L:length(.), 
                  .f = function(array., matrix., idx) {
@@ -209,6 +306,21 @@ digit <- 5L
 # Define a dictionary of digits and letters present in CAPTCHA
 class_level <- c(0L:9L, letters)
 
+# Define a helper function for one-hot encoding
+to_categorical <- function(idx, class_level) {
+  stopifnot(all(idx <= length(class_level)))
+  idx %>%
+    purrr::map_dfr(~ {
+      one_hot <- rep(0L, length(class_level))
+      one_hot[.x] <- 1L
+      one_hot %>%
+        set_names(class_level) %>%
+        as.list() %>%
+        tibble::as_tibble()
+    }) %>%
+    `rownames<-`(names(idx)) %>%
+    as.matrix()
+}
 # Define a function to convert character vector to categorical matrix list
 labels2matrices <- function(labels, class_level) {
   labels %>%
@@ -219,8 +331,7 @@ labels2matrices <- function(labels, class_level) {
     purrr::map(~ {
       factor(.x, levels = class_level) %>%
         as.numeric() %>%
-        `-`(1L) %>%
-        keras::to_categorical(num_classes = length(class_level))
+        to_categorical(class_level)
     })
 }
 
@@ -245,64 +356,96 @@ multiple digits to predict for each CAPTCHA image, we would build the
 model including a common convolutional model, a common flatten layer and
 multiple DNN models (one for each digit).
 
+``` r
+# Define a helper function to transfer variables from r to python
+#' @param ... Names of objects to ship to python
+r2python <- function(...) {
+  check_python()
+  var_names <- rlang::enexprs(...) %>%
+    as.character()
+  purrr::walk2(
+    .x = list(...),
+    .y = var_names,
+    .f = ~ {
+      py[[.y]] <- .x
+    }
+  )
+}
+
+# Define a helper function to transfer variables from python to r
+#' @param py Python connection created by \code{\link[reticulate]{py_config}}.
+#' @param nm Character vector as the names of python variables to ship.
+#' @param env Environment to release extracted named \code{py} elements into.
+python2r <- function(py, nm, env = rlang::caller_env()) {
+  check_python()
+  nm %>%
+    purrr::walk(~ {
+      rlang::env_poke(env, nm = .x, value = py[[.x]])
+    })
+}
+```
+
+``` r
+# Wrap up variables and transfer them to python
+r2python(digit, class_level, data_x)
+```
+
 #### Convolutional model
 
 The convolutional model (diagram as below) was built by adding multiple
 modules of convolutional and max-pooling layers, optionally adding a
 batch-normalization layer to improve model convergence.
 
-``` r
-# Define a function that build a module of convolutional and pooling layers
-build_unit_conv_layer <- function(input_layer,
-                                  filters,
-                                  kernel_size,
-                                  pool_size,
-                                  activation,
-                                  kernel_padding,
-                                  pool_padding,
-                                  batch_norm = FALSE,
-                                  ...) {
-  conv_layer <- input_layer %>%
-    keras::layer_conv_2d(filters = filters,
-                         kernel_size = kernel_size,
-                         activation = activation,
-                         padding = kernel_padding)
-  if (batch_norm == TRUE) {
-    conv_layer <- conv_layer %>%
-      keras::layer_batch_normalization(...)
-  }
-  conv_layer %>% # input_shape = dim(data_x)[-1L]
-    keras::layer_max_pooling_2d(pool_size = pool_size,
-                                padding = pool_padding)
-}
-
+``` python
 # Define the convolutional model
-input_layer <- keras::layer_input(shape = dim(data_x)[-1L])
-conv_model <- keras::keras_model(
-  inputs = input_layer,
-  outputs = tibble::tribble(
-    ~filters, ~kernel_size, ~pool_size, ~activation, ~kernel_padding,
-    ~pool_padding, ~batch_norm,
-    16L, c(3L, 3L), c(2L, 2L), "relu", "same", "same", FALSE,
-    32L, c(3L, 3L), c(2L, 2L), "relu", "same", "same", FALSE,
-    32L, c(3L, 3L), c(2L, 2L), "relu", "same", "same", TRUE
-  ) %>%
-    purrr::pmap(function(...) list(...)) %>%
-    purrr::reduce(.f = ~ {
-      rlang::inject(build_unit_conv_layer(.x, !!!.y))
-    },
-    .init = input_layer)
-)
-deepviz::plot_model(conv_model)
+input_layer = keras.Input(shape = np.shape(data_x)[1:])
+conv_layer = layers.Conv2D(
+  filters = 16,
+  kernel_size = (3, 3),
+  padding = "same",
+  activation = "relu"
+)(input_layer)
+conv_layer = layers.MaxPooling2D(
+  pool_size = (2, 2),
+  padding = "same"
+)(conv_layer)
+conv_layer = layers.Conv2D(
+  filters = 32,
+  kernel_size = (3, 3),
+  padding = "same",
+  activation = "relu"
+)(conv_layer)
+conv_layer = layers.MaxPooling2D(
+  pool_size = (2, 2),
+  padding = "same"
+)(conv_layer)
+conv_layer = layers.Conv2D(
+  filters = 32,
+  kernel_size = (3, 3),
+  padding = "same",
+  activation = "relu"
+)(conv_layer)
+conv_layer = layers.BatchNormalization()(conv_layer)
+conv_layer = layers.MaxPooling2D(
+  pool_size = (2, 2),
+  padding = "same"
+)(conv_layer)
+conv_model = keras.Model(inputs = input_layer, outputs = conv_layer)
+# Define a flatten layer
+conv_layer_flatten = layers.Flatten()(conv_layer)
 ```
-
-<img src="README_files/build-conv-model-1.png" width="100%" />
 
 ``` r
-# Define a flatten layer
-conv_layer_flatten <- conv_model(input_layer) %>%
-  keras::layer_flatten()
+visualize_model_rmd(
+  py_model = py$conv_model,
+  file_name = "model_plot/conv_model.png",
+  show_shapes = TRUE,
+  show_layer_names = FALSE,
+  verbose = FALSE
+)
 ```
+
+<img src="model_plot/conv_model.png" width="25%" style="display: block; margin: auto;" />
 
 #### Deep neural network (DNN) models
 
@@ -313,38 +456,18 @@ configuration with the unit as the number of possibilities per digit and
 activation function as `"softmax"`. The input layer of each DNN model
 was copied from the shape of the output from the flatten layer.
 
-``` r
+``` python
 # Define a function that copies the shape of a layer and defines an input layer
-build_input_layer_like <- function(layer) {
-  keras::layer_input(shape = as.integer(keras::k_int_shape(layer)[-1L]))
-}
+def build_deep_layer(input_layer, class_level):
+  deep_layer = layers.Dense(64, activation = "relu")(input_layer)
+  deep_layer = layers.Dropout(0.5)(deep_layer)
+  deep_layer = layers.Dense(len(class_level), activation = "softmax")(deep_layer)
+  return deep_layer
 
-# Define a list of DNN models, one for each digit
-deep_models <- purrr::rerun(
-  .n = digit,
-  build_input_layer_like(conv_layer_flatten) %>%
-    keras::keras_model(
-      outputs = keras::layer_dense(.,
-                                   units = 64L,
-                                   activation = "relu") %>%
-        keras::layer_dropout(rate = 0.5) %>%
-        keras::layer_dense(units = length(class_level),
-                           activation = "softmax")
-    )
-)
-print(length(deep_models))
-#> [1] 5
-deepviz::plot_model(deep_models[[1L]])
-```
-
-<img src="README_files/build-DNN-models-1.png" width="100%" />
-
-``` r
-# Define output layers
-output_layers <- deep_models %>%
-  purrr::map(~ {
-    .x(conv_layer_flatten)
-  })
+# Construct deep model layers (one for each digit)
+deep_layers = [
+  build_deep_layer(conv_layer_flatten, class_level) for _ in range(digit)
+]
 ```
 
 #### Assembled CNN model
@@ -353,100 +476,129 @@ The convolutional model and the DNN models were assembled into a final
 CNN model (diagram as below) and the final CNN model was compiled for
 training.
 
-``` r
-# Assemble the final model
-model <- keras::keras_model(inputs = input_layer,
-                            outputs = output_layers %>%
-                              purrr::reduce(c))
-print(model)
-#> Model
-#> Model: "model_6"
-#> ________________________________________________________________________________
-#> Layer (type)              Output Shape      Param #  Connected to               
-#> ================================================================================
-#> input_1 (InputLayer)      [(None, 50, 200,  0                                   
-#> ________________________________________________________________________________
-#> model (Functional)        (None, 7, 25, 32) 14176    input_1[0][0]              
-#> ________________________________________________________________________________
-#> flatten (Flatten)         (None, 5600)      0        model[0][0]                
-#> ________________________________________________________________________________
-#> model_1 (Functional)      (None, 36)        360804   flatten[0][0]              
-#> ________________________________________________________________________________
-#> model_2 (Functional)      (None, 36)        360804   flatten[0][0]              
-#> ________________________________________________________________________________
-#> model_3 (Functional)      (None, 36)        360804   flatten[0][0]              
-#> ________________________________________________________________________________
-#> model_4 (Functional)      (None, 36)        360804   flatten[0][0]              
-#> ________________________________________________________________________________
-#> model_5 (Functional)      (None, 36)        360804   flatten[0][0]              
-#> ================================================================================
+``` python
+# Construct the final model
+model = keras.Model(inputs = input_layer, outputs = deep_layers)
+model.summary()
+#> Model: "model_1"
+#> __________________________________________________________________________________________________
+#> Layer (type)                    Output Shape         Param #     Connected to                     
+#> ==================================================================================================
+#> input_1 (InputLayer)            [(None, 50, 200, 1)] 0                                            
+#> __________________________________________________________________________________________________
+#> conv2d (Conv2D)                 (None, 50, 200, 16)  160         input_1[0][0]                    
+#> __________________________________________________________________________________________________
+#> max_pooling2d (MaxPooling2D)    (None, 25, 100, 16)  0           conv2d[0][0]                     
+#> __________________________________________________________________________________________________
+#> conv2d_1 (Conv2D)               (None, 25, 100, 32)  4640        max_pooling2d[0][0]              
+#> __________________________________________________________________________________________________
+#> max_pooling2d_1 (MaxPooling2D)  (None, 13, 50, 32)   0           conv2d_1[0][0]                   
+#> __________________________________________________________________________________________________
+#> conv2d_2 (Conv2D)               (None, 13, 50, 32)   9248        max_pooling2d_1[0][0]            
+#> __________________________________________________________________________________________________
+#> batch_normalization (BatchNorma (None, 13, 50, 32)   128         conv2d_2[0][0]                   
+#> __________________________________________________________________________________________________
+#> max_pooling2d_2 (MaxPooling2D)  (None, 7, 25, 32)    0           batch_normalization[0][0]        
+#> __________________________________________________________________________________________________
+#> flatten (Flatten)               (None, 5600)         0           max_pooling2d_2[0][0]            
+#> __________________________________________________________________________________________________
+#> dense (Dense)                   (None, 64)           358464      flatten[0][0]                    
+#> __________________________________________________________________________________________________
+#> dense_2 (Dense)                 (None, 64)           358464      flatten[0][0]                    
+#> __________________________________________________________________________________________________
+#> dense_4 (Dense)                 (None, 64)           358464      flatten[0][0]                    
+#> __________________________________________________________________________________________________
+#> dense_6 (Dense)                 (None, 64)           358464      flatten[0][0]                    
+#> __________________________________________________________________________________________________
+#> dense_8 (Dense)                 (None, 64)           358464      flatten[0][0]                    
+#> __________________________________________________________________________________________________
+#> dropout (Dropout)               (None, 64)           0           dense[0][0]                      
+#> __________________________________________________________________________________________________
+#> dropout_1 (Dropout)             (None, 64)           0           dense_2[0][0]                    
+#> __________________________________________________________________________________________________
+#> dropout_2 (Dropout)             (None, 64)           0           dense_4[0][0]                    
+#> __________________________________________________________________________________________________
+#> dropout_3 (Dropout)             (None, 64)           0           dense_6[0][0]                    
+#> __________________________________________________________________________________________________
+#> dropout_4 (Dropout)             (None, 64)           0           dense_8[0][0]                    
+#> __________________________________________________________________________________________________
+#> dense_1 (Dense)                 (None, 36)           2340        dropout[0][0]                    
+#> __________________________________________________________________________________________________
+#> dense_3 (Dense)                 (None, 36)           2340        dropout_1[0][0]                  
+#> __________________________________________________________________________________________________
+#> dense_5 (Dense)                 (None, 36)           2340        dropout_2[0][0]                  
+#> __________________________________________________________________________________________________
+#> dense_7 (Dense)                 (None, 36)           2340        dropout_3[0][0]                  
+#> __________________________________________________________________________________________________
+#> dense_9 (Dense)                 (None, 36)           2340        dropout_4[0][0]                  
+#> ==================================================================================================
 #> Total params: 1,818,196
 #> Trainable params: 1,818,132
 #> Non-trainable params: 64
-#> ________________________________________________________________________________
-deepviz::plot_model(model)
+#> __________________________________________________________________________________________________
 ```
 
-<img src="README_files/assemble-model-1.png" width="100%" />
+``` python
+# Compile the final model
+model.compile(
+  loss = "categorical_crossentropy",
+  optimizer = "adam",
+  metrics = ["accuracy"]
+)
+```
 
 ``` r
-# Compile the final model
-model %>%
-  keras::compile(optimizer = "adam",
-                 loss = "categorical_crossentropy",
-                 metrics = c("accuracy"))
+visualize_model_rmd(
+  py_model = py$model,
+  file_name = "model_plot/final_model.png",
+  show_shapes = TRUE,
+  show_layer_names = FALSE,
+  verbose = FALSE
+)
 ```
+
+<img src="model_plot/final_model.png" width="100%" />
 
 ## Results
 
 ### Model training
 
 The final CNN model was trained with 940 images with 20% of them as
-cross-validation dataset.
+cross-validation dataset. Please note that in python indices start at 0.
 
 ``` r
-# Define training dataset
+# Define training and testing dataset
 set.seed(999L)
 train_idx <- sample.int(dim(data_x)[1L], size = length(file_names) - 100L)
 print(length(train_idx))
 #> [1] 940
+test_idx <- setdiff(seq_along(data_y_labels), train_idx)
+print(length(test_idx))
+#> [1] 100
+# Adjust indices to 0-based
+train_idx_0 <- train_idx - 1L
+test_idx_0 <- test_idx - 1L
 
-# Train model
-model_history <- model %>%
-  keras::fit(x = data_x[train_idx, , , , drop = FALSE],
-             y = data_y %>%
-               purrr::map(~ {
-                 .x[train_idx, , drop = FALSE]
-               }),
-             batch_size = 32L,
-             epochs = 200L,
-             validation_split = 0.2,
-             view_metrics = FALSE)
-print(model_history)
-#> 
-#> Final epoch (plot to see history):
-#>                 loss: 0.552
-#>         model_1_loss: 0.05332
-#>         model_2_loss: 0.06558
-#>         model_3_loss: 0.1409
-#>         model_4_loss: 0.1702
-#>         model_5_loss: 0.1221
-#>     model_1_accuracy: 0.9827
-#>     model_2_accuracy: 0.9747
-#>     model_3_accuracy: 0.9441
-#>     model_4_accuracy: 0.9348
-#>     model_5_accuracy: 0.9548
-#>             val_loss: 4.059
-#>     val_model_1_loss: 0.005682
-#>     val_model_2_loss: 0.6227
-#>     val_model_3_loss: 0.9481
-#>     val_model_4_loss: 1.152
-#>     val_model_5_loss: 1.331
-#> val_model_1_accuracy: 1
-#> val_model_2_accuracy: 0.9468
-#> val_model_3_accuracy: 0.8883
-#> val_model_4_accuracy: 0.8245
-#> val_model_5_accuracy: 0.883
+# Subset responses
+data_y_train <- data_y %>%
+  purrr::map(~ .x[train_idx, , drop = FALSE])
+data_y_test <- data_y %>%
+  purrr::map(~ .x[test_idx, , drop = FALSE])
+```
+
+``` r
+# Wrap up variables and transfer them to python
+r2python(train_idx_0, test_idx_0, data_y_train, data_y_test)
+```
+
+``` python
+model_history = model.fit(
+  data_x[train_idx_0],
+  data_y_train,
+  batch_size = 32,
+  epochs = 200,
+  validation_split = 0.2
+)
 ```
 
 ### Convolutional features
@@ -456,11 +608,14 @@ various features were abstracted. For visualization of feature patterns,
 the convoluted values were linearly scaled to range \[0,1\] with
 positive coefficient and rendered in grayscale (figures as below).
 
+``` python
+conv_features = conv_model.predict(x = data_x)
+print(np.shape(conv_features))
+#> (1040, 7, 25, 32)
+```
+
 ``` r
-conv_features <- conv_model %>%
-  predict(x = data_x)
-print(dim(conv_features))
-#> [1] 1040    7   25   32
+python2r(py, c("conv_features"))
 ```
 
 ``` r
@@ -513,7 +668,7 @@ print(dim(layout_matrix))
 # Arrange images
 data_x[image_idx, , , , drop = TRUE] %>%
   drop() %>%
-  keras::array_reshape(dim = c(dim(.), 1L)) %>%
+  reticulate::array_reshape(dim = c(dim(.), 1L)) %>%
   matrix2gg_image(
     decimal = TRUE,
     title = "Original image",
@@ -530,7 +685,7 @@ data_x[image_idx, , , , drop = TRUE] %>%
     layout_matrix = layout_matrix,
     heights = grid::unit(rep(3, nrow(layout_matrix)), "line")
   )} %>%
-  grid::grid.draw()
+  ggpubr::as_ggplot()
 ```
 
 <img src="README_files/plot-conv-features-1.png" width="100%" />
@@ -540,49 +695,107 @@ data_x[image_idx, , , , drop = TRUE] %>%
 Training history of the final CNN model was revealed in terms of loss
 and accuracy (figure as below).
 
-``` r
-# Plot training history: loss and metrics
-model_history[["metrics"]] %>%
-  tibble::as_tibble() %>%
-  dplyr::select(dplyr::matches("model_[0-9]+")) %>%
-  tibble::rowid_to_column("epoch") %>%
-  tidyr::pivot_longer(cols = !c("epoch"),
-                      names_to = c("model_name", "metric"),
-                      names_sep = "(?<=[0-9])_",
-                      values_to = "value") %>%
-  dplyr::mutate(
-    metric_category = ifelse(stringr::str_starts(model_name, "val_"),
-                             "validation",
-                             "training")
-  ) %>%
-  dplyr::mutate_at("model_name", ~ stringr::str_replace(.x, "val_", "")) %>%
-  dplyr::mutate_at("metric", ~ factor(.x, levels = unique(.x))) %>%
-  split(f = .[["metric"]]) %>%
-  purrr::imap(function(plot_data, metric_name) {
-    plot_data %>%
-      ggplot2::ggplot(ggplot2::aes(x = epoch, y = value)) +
-      ggplot2::geom_line(ggplot2::aes(color = metric_category)) +
-      ggplot2::facet_wrap(facets = ggplot2::vars(model_name),
-                          nrow = 1L) +
-      ggplot2::theme_bw() +
-      ggplot2::labs(x = "Epoch",
-                    y = stringr::str_to_sentence(metric_name),
-                    color = "Category")
-  }) %>%
-  {ggpubr::ggarrange(plotlist = .,
-                     ncol = 1L,
-                     align = "hv",
-                     labels = "AUTO",
-                     legend = "right",
-                     common.legend = TRUE)}
+``` python
+# Define a function to plot model history metric
+def plot_model_history(history, metric = "accuracy", plot_idx = [[0], [1]], row = True, share_axis = True):
+  if row == True:
+    fig, axs = plt.subplots(1, len(plot_idx[0]), sharey = share_axis)
+    for plot_i in range(len(plot_idx[0])):
+      axs[plot_i].plot(
+        history.history[list(history.history.keys())[plot_idx[0][plot_i]]]
+      )
+      axs[plot_i].plot(
+        history.history[list(history.history.keys())[plot_idx[1][plot_i]]]
+      )
+      axs[plot_i].set_title("Model " + str(plot_i + 1))
+    fig.suptitle("Model " + metric, y = 1.00)
+    plt.figlegend(["Train", "Valid"], loc = "upper right")
+    # add a big axis, hide frame
+    fig.add_subplot(111, frameon=False)
+    # hide tick and tick label of the big axis
+    plt.tick_params(
+      labelcolor = "none",
+      top = False,
+      bottom = False,
+      left = False,
+      right = False
+    )
+    plt.xlabel("Epoch")
+    plt.ylabel(metric)
+  else:
+    fig, axs = plt.subplots(len(plot_idx[0]), 1, sharex = share_axis)
+    for plot_i in range(len(plot_idx[0])):
+      axs[plot_i].plot(
+        history.history[list(history.history.keys())[plot_idx[0][plot_i]]]
+      )
+      axs[plot_i].plot(
+        history.history[list(history.history.keys())[plot_idx[1][plot_i]]]
+      )
+      axs[plot_i].set_title("Model " + str(plot_i + 1))
+    fig.suptitle("Model " + metric, y = 1.00)
+    plt.figlegend(["Train", "Valid"], loc = "upper right")
+    # add a big axis, hide frame
+    fig.add_subplot(111, frameon=False)
+    # hide tick and tick label of the big axis
+    plt.tick_params(
+      labelcolor = 'none',
+      top = False,
+      bottom = False,
+      left = False,
+      right = False
+    )
+    plt.xlabel("Epoch")
+    plt.ylabel(metric)
 ```
 
-<img src="README_files/eval-model-perf-1.png" width="100%" />
+``` python
+# summarize history for loss
+plot_model_history(
+  model_history,
+  metric = "loss",
+  plot_idx = [
+    list(range(1, 1 + digit)),
+    list(range(2 + 2 * digit, 2 + 3 * digit))
+  ],
+  row = True
+)
+fig = plt.gcf()
+fig.set_size_inches(w = 10, h = 4, forward = True)
+plt.show()
+```
+
+<img src="README_files/build-conv-model-1.png" width="100%" />
+
+``` python
+# summarize history for accuracy
+plot_model_history(
+  model_history,
+  metric = "accuracy",
+  plot_idx = [
+   list(range(1 + digit, 1 + 2 * digit)),
+   list(range(2 + 3 * digit, 2 + 4 * digit))
+  ],
+  row = True
+)
+fig = plt.gcf()
+fig.set_size_inches(w = 10, h = 4, forward = True)
+plt.show()
+```
+
+<img src="README_files/build-conv-model-3.png" width="100%" />
 
 ### Model testing
 
 Tested with the remaining 100 images, the final CNN model achieved an
 overall accuracy of 70%.
+
+``` python
+model_pred = model.predict(x = data_x[test_idx_0])
+```
+
+``` r
+python2r(py, "model_pred")
+```
 
 ``` r
 # Define a function to convert categorical matrix list to character vector
@@ -596,19 +809,13 @@ matrices2labels <- function(matrices, class_level) {
     purrr::pmap_chr(paste0)
 }
 
-# Define testing dataset
-test_idx <- setdiff(seq_along(file_names), train_idx)
-print(length(test_idx))
-#> [1] 100
-
 # Derive predictions and convert them to labels
-model_pred <- model %>%
-  predict(x = data_x[test_idx, , , , drop = FALSE]) %>%
+model_pred_labels <- model_pred %>%
   matrices2labels(class_level = class_level)
 
 # Derive overall accuracy
 model_accuracy <- purrr::map2_lgl(
-  .x = model_pred,
+  .x = model_pred_labels,
   .y = data_y_labels[test_idx],
   .f = identical
 ) %>%
@@ -647,16 +854,20 @@ display_pred_example <- function(data, pred, truth, index) {
 }
 
 # Display some prediction results
-model_truth <- data_y_labels[test_idx]
-model_correct_lgl <- purrr::map2(model_pred, model_truth, identical)
+model_truth_labels <- data_y_labels[test_idx]
+model_correct_lgl <- purrr::map2(
+  .x = model_pred_labels,
+  .y = model_truth_labels,
+  .f = identical
+)
 purrr::map(seq(2L, 97L, by = 5L), ~ {
   display_pred_example(data = data_x[test_idx, , , , drop = FALSE],
-                       pred = model_pred,
-                       truth = model_truth,
+                       pred = model_pred_labels,
+                       truth = model_truth_labels,
                        index = .x)
 }) %>%
   {gridExtra::arrangeGrob(grobs = ., ncol = 5L)} %>%
-  grid::grid.draw()
+  ggpubr::as_ggplot()
 ```
 
 <img src="README_files/test-model-examples-1.png" width="100%" />
@@ -692,19 +903,39 @@ data_y_union <- purrr::reduce(
                   purrr::prepend(length(data_y), 2L))
 )
 
-# Define a unified DNN model
-deep_model_union <- build_input_layer_like(conv_layer_flatten) %>%
-    keras::keras_model(
-      outputs = keras::layer_dense(.,
-                                   units = 64L * digit,
-                                   activation = "relu") %>%
-        keras::layer_dropout(rate = 0.5) %>%
-        keras::layer_dense(units = length(class_level) * digit,
-                           activation = NULL) %>%
-        keras::layer_reshape(target_shape = dim(data_y_union)[-1L]) %>%
-        keras::layer_activation(activation = "softmax")
-    )
+# Send data_y_union to python
+r2python(data_y_union)
 ```
+
+``` python
+# Define a unified DNN layer
+deep_layer_union = layers.Dense(
+  units = 64 * digit,
+  activation = "relu"
+)(conv_layer_flatten)
+deep_layer_union = layers.Dropout(0.5)(deep_layer_union)
+deep_layer_union = layers.Dense(
+  units = len(class_level) * digit,
+  activation = "linear"
+)(deep_layer_union)
+deep_layer_union = layers.Reshape(np.shape(data_y_union)[1:])(deep_layer_union)
+deep_layer_union = layers.Softmax()(deep_layer_union)
+
+# Define a unified DNN model
+model_union = keras.Model(inputs = input_layer, outputs = deep_layer_union)
+```
+
+``` r
+visualize_model_rmd(
+  py_model = py$model_union,
+  file_name = "model_plot/final_model_union.png",
+  show_shapes = TRUE,
+  show_layer_names = FALSE,
+  verbose = FALSE
+)
+```
+
+<img src="model_plot/final_model_union.png" width="25%" style="display: block; margin: auto;" />
 
 Another more challenging exploration is to break text-based CAPTCHA
 images without knowing the accurate number of digits. To limit the
@@ -746,33 +977,41 @@ utils::sessionInfo()
 #> [8] base     
 #> 
 #> other attached packages:
-#>  [1] deepviz_0.0.1.9000 keras_2.4.0        ggtext_0.1.1       ggpubr_0.4.0      
-#>  [5] png_0.1-7          rlang_0.4.11       magrittr_2.0.1     forcats_0.5.1     
-#>  [9] stringr_1.4.0      dplyr_1.0.7        purrr_0.3.4        readr_2.0.1       
-#> [13] tidyr_1.1.3        tibble_3.1.3       ggplot2_3.3.5      tidyverse_1.3.1   
+#>  [1] ggtext_0.1.1    ggpubr_0.4.0    png_0.1-7       reticulate_1.20
+#>  [5] rlang_0.4.11    magrittr_2.0.1  forcats_0.5.1   stringr_1.4.0  
+#>  [9] dplyr_1.0.7     purrr_0.3.4     readr_2.0.1     tidyr_1.1.3    
+#> [13] tibble_3.1.3    ggplot2_3.3.5   tidyverse_1.3.1
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] fs_1.5.0           lubridate_1.7.10   webshot_0.5.2      RColorBrewer_1.1-2
-#>  [5] httr_1.4.2         backports_1.1.8    utf8_1.1.4         R6_2.4.1          
-#>  [9] DBI_1.1.0          colorspace_1.4-1   withr_2.4.1        processx_3.5.1    
-#> [13] gridExtra_2.3      tidyselect_1.1.0   curl_4.3           compiler_4.0.5    
-#> [17] cli_3.0.1          rvest_1.0.1        xml2_1.3.2         labeling_0.3      
-#> [21] scales_1.1.1       callr_3.6.0        tfruns_1.5.0       rappdirs_0.3.3    
-#> [25] digest_0.6.25      foreign_0.8-81     rmarkdown_2.3      rio_0.5.27        
-#> [29] base64enc_0.1-3    pkgconfig_2.0.3    htmltools_0.5.0    dbplyr_2.1.1      
-#> [33] htmlwidgets_1.5.3  readxl_1.3.1       rstudioapi_0.13    farver_2.0.3      
-#> [37] visNetwork_2.0.9   generics_0.1.0     jsonlite_1.7.2     tensorflow_2.5.0  
-#> [41] zip_2.1.1          car_3.0-11         Matrix_1.3-2       Rcpp_1.0.7        
-#> [45] munsell_0.5.0      fansi_0.4.2        viridis_0.5.1      abind_1.4-5       
-#> [49] reticulate_1.20    lifecycle_1.0.0    stringi_1.4.6      whisker_0.4       
-#> [53] yaml_2.2.1         carData_3.0-4      ggraph_2.0.5       MASS_7.3-53.1     
-#> [57] grid_4.0.5         ggrepel_0.8.2      crayon_1.4.1       lattice_0.20-41   
-#> [61] cowplot_1.1.1      graphlayouts_0.7.1 haven_2.4.3        gridtext_0.1.4    
-#> [65] hms_1.1.0          ps_1.6.0           zeallot_0.1.0      knitr_1.29        
-#> [69] pillar_1.6.2       igraph_1.2.6       ggsignif_0.6.2     reprex_2.0.1      
-#> [73] glue_1.4.2         evaluate_0.14      data.table_1.13.0  modelr_0.1.8      
-#> [77] tweenr_1.0.2       vctrs_0.3.8        tzdb_0.1.2         cellranger_1.1.0  
-#> [81] polyclip_1.10-0    gtable_0.3.0       assertthat_0.2.1   ggforce_0.3.3     
-#> [85] xfun_0.15          openxlsx_4.2.4     tidygraph_1.2.0    broom_0.7.9       
-#> [89] rstatix_0.7.0      viridisLite_0.3.0  DiagrammeR_1.0.6.1 ellipsis_0.3.2
+#>  [1] httr_1.4.2        jsonlite_1.7.2    carData_3.0-4     modelr_0.1.8     
+#>  [5] assertthat_0.2.1  cellranger_1.1.0  yaml_2.2.1        pillar_1.6.2     
+#>  [9] backports_1.1.8   lattice_0.20-41   glue_1.4.2        digest_0.6.25    
+#> [13] ggsignif_0.6.2    gridtext_0.1.4    rvest_1.0.1       colorspace_1.4-1 
+#> [17] cowplot_1.1.1     htmltools_0.5.0   Matrix_1.3-2      pkgconfig_2.0.3  
+#> [21] broom_0.7.9       haven_2.4.3       scales_1.1.1      openxlsx_4.2.4   
+#> [25] rio_0.5.27        tzdb_0.1.2        farver_2.0.3      generics_0.1.0   
+#> [29] car_3.0-11        ellipsis_0.3.2    withr_2.4.1       cli_3.0.1        
+#> [33] crayon_1.4.1      readxl_1.3.1      evaluate_0.14     fs_1.5.0         
+#> [37] fansi_0.4.2       rstatix_0.7.0     xml2_1.3.2        foreign_0.8-81   
+#> [41] data.table_1.13.0 hms_1.1.0         lifecycle_1.0.0   munsell_0.5.0    
+#> [45] reprex_2.0.1      zip_2.1.1         compiler_4.0.5    grid_4.0.5       
+#> [49] rstudioapi_0.13   rappdirs_0.3.3    labeling_0.3      rmarkdown_2.3    
+#> [53] gtable_0.3.0      abind_1.4-5       DBI_1.1.0         curl_4.3         
+#> [57] markdown_1.1      R6_2.4.1          gridExtra_2.3     lubridate_1.7.10 
+#> [61] knitr_1.29        utf8_1.1.4        stringi_1.4.6     Rcpp_1.0.7       
+#> [65] vctrs_0.3.8       dbplyr_2.1.1      tidyselect_1.1.0  xfun_0.15
+```
+
+``` python
+session_info.show()
+#> -----
+#> matplotlib          3.4.3
+#> numpy               1.19.5
+#> session_info        1.0.0
+#> tensorflow          2.5.0
+#> -----
+#> Python 3.7.11 (default, Jul 27 2021, 09:42:29) [MSC v.1916 64 bit (AMD64)]
+#> Windows-10-10.0.19041-SP0
+#> -----
+#> Session information updated at 2021-11-15 09:03
 ```
