@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-15 08:46:39<br />
-**Compiled**: 2021-11-15 08:46:41
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-15 12:00:35<br />
+**Compiled**: 2021-11-15 12:00:37
 
 ## Abstract
 
@@ -90,6 +90,7 @@ check_python()
 
 ``` python
 import numpy as np
+import pandas as pd
 import os
 from matplotlib import pyplot as plt
 import tensorflow as tf
@@ -599,6 +600,7 @@ model_history = model.fit(
   epochs = 200,
   validation_split = 0.2
 )
+model_history_df = pd.DataFrame(model_history.history)
 ```
 
 ### Convolutional features
@@ -695,94 +697,60 @@ data_x[image_idx, , , , drop = TRUE] %>%
 Training history of the final CNN model was revealed in terms of loss
 and accuracy (figure as below).
 
-``` python
-# Define a function to plot model history metric
-def plot_model_history(history, metric = "accuracy", plot_idx = [[0], [1]], row = True, share_axis = True):
-  if row == True:
-    fig, axs = plt.subplots(1, len(plot_idx[0]), sharey = share_axis)
-    for plot_i in range(len(plot_idx[0])):
-      axs[plot_i].plot(
-        history.history[list(history.history.keys())[plot_idx[0][plot_i]]]
-      )
-      axs[plot_i].plot(
-        history.history[list(history.history.keys())[plot_idx[1][plot_i]]]
-      )
-      axs[plot_i].set_title("Model " + str(plot_i + 1))
-    fig.suptitle("Model " + metric, y = 1.00)
-    plt.figlegend(["Train", "Valid"], loc = "upper right")
-    # add a big axis, hide frame
-    fig.add_subplot(111, frameon=False)
-    # hide tick and tick label of the big axis
-    plt.tick_params(
-      labelcolor = "none",
-      top = False,
-      bottom = False,
-      left = False,
-      right = False
-    )
-    plt.xlabel("Epoch")
-    plt.ylabel(metric)
-  else:
-    fig, axs = plt.subplots(len(plot_idx[0]), 1, sharex = share_axis)
-    for plot_i in range(len(plot_idx[0])):
-      axs[plot_i].plot(
-        history.history[list(history.history.keys())[plot_idx[0][plot_i]]]
-      )
-      axs[plot_i].plot(
-        history.history[list(history.history.keys())[plot_idx[1][plot_i]]]
-      )
-      axs[plot_i].set_title("Model " + str(plot_i + 1))
-    fig.suptitle("Model " + metric, y = 1.00)
-    plt.figlegend(["Train", "Valid"], loc = "upper right")
-    # add a big axis, hide frame
-    fig.add_subplot(111, frameon=False)
-    # hide tick and tick label of the big axis
-    plt.tick_params(
-      labelcolor = 'none',
-      top = False,
-      bottom = False,
-      left = False,
-      right = False
-    )
-    plt.xlabel("Epoch")
-    plt.ylabel(metric)
+``` r
+python2r(py, "model_history_df")
 ```
 
-``` python
-# summarize history for loss
-plot_model_history(
-  model_history,
-  metric = "loss",
-  plot_idx = [
-    list(range(1, 1 + digit)),
-    list(range(2 + 2 * digit, 2 + 3 * digit))
-  ],
-  row = True
-)
-fig = plt.gcf()
-fig.set_size_inches(w = 10, h = 4, forward = True)
-plt.show()
+``` r
+# Plot training history: loss and metrics
+model_history_df %>%
+  tibble::as_tibble() %>%
+  dplyr::select(dplyr::matches("dense_")) %>%
+  tibble::rowid_to_column("epoch") %>%
+  tidyr::pivot_longer(cols = !c("epoch"),
+                      names_to = c("model_name", "metric"),
+                      names_sep = "(?<=[0-9])_",
+                      values_to = "value") %>%
+  dplyr::mutate(
+    metric_category = ifelse(stringr::str_starts(model_name, "val_"),
+                             "Validation",
+                             "Training")
+  ) %>%
+  dplyr::mutate_at(
+    "model_name",
+    ~ .x %>%
+      stringr::str_replace("val_", "") %>%
+      stringr::str_replace("dense_", "Model ") %>%
+      {
+        # Create map from "dense_1/3/5/..." to "Model 1/2/3/..."
+        model_idx <- stringr::str_extract(., "[0-9]+") %>%
+          as.integer() %>%
+          {(. + 1L) / 2L}
+        paste0("Model ", model_idx)
+      }
+  ) %>%
+  dplyr::mutate_at("metric", ~ factor(.x, levels = unique(.x))) %>%
+  split(f = .[["metric"]]) %>%
+  purrr::imap(function(plot_data, metric_name) {
+    plot_data %>%
+      ggplot2::ggplot(ggplot2::aes(x = epoch, y = value)) +
+      ggplot2::geom_line(ggplot2::aes(color = metric_category)) +
+      ggplot2::facet_wrap(facets = ggplot2::vars(model_name),
+                          nrow = 1L) +
+      ggplot2::theme_bw() +
+      ggplot2::labs(x = "Epoch",
+                    y = stringr::str_to_sentence(metric_name),
+                    color = "Category")
+  }) %>%
+  {ggpubr::ggarrange(plotlist = .,
+                     ncol = 1L,
+                     align = "hv",
+                     labels = "AUTO",
+                     legend = "right",
+                     common.legend = TRUE)}
 ```
 
-<img src="README_files/build-conv-model-1.png" width="100%" />
-
-``` python
-# summarize history for accuracy
-plot_model_history(
-  model_history,
-  metric = "accuracy",
-  plot_idx = [
-   list(range(1 + digit, 1 + 2 * digit)),
-   list(range(2 + 3 * digit, 2 + 4 * digit))
-  ],
-  row = True
-)
-fig = plt.gcf()
-fig.set_size_inches(w = 10, h = 4, forward = True)
-plt.show()
-```
-
-<img src="README_files/build-conv-model-3.png" width="100%" />
+<img src="README_files/eval-model-perf-1.png" width="100%" />
 
 ### Model testing
 
@@ -1007,11 +975,12 @@ session_info.show()
 #> -----
 #> matplotlib          3.4.3
 #> numpy               1.19.5
+#> pandas              1.3.4
 #> session_info        1.0.0
 #> tensorflow          2.5.0
 #> -----
 #> Python 3.7.11 (default, Jul 27 2021, 09:42:29) [MSC v.1916 64 bit (AMD64)]
 #> Windows-10-10.0.19041-SP0
 #> -----
-#> Session information updated at 2021-11-15 09:03
+#> Session information updated at 2021-11-15 12:16
 ```
