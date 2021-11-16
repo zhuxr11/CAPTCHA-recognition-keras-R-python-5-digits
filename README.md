@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-15 12:00:35<br />
-**Compiled**: 2021-11-15 12:00:37
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-16 08:49:47<br />
+**Compiled**: 2021-11-16 08:49:50
 
 ## Abstract
 
@@ -617,7 +617,7 @@ print(np.shape(conv_features))
 ```
 
 ``` r
-python2r(py, c("conv_features"))
+python2r(py, "conv_features")
 ```
 
 ``` r
@@ -982,5 +982,5 @@ session_info.show()
 #> Python 3.7.11 (default, Jul 27 2021, 09:42:29) [MSC v.1916 64 bit (AMD64)]
 #> Windows-10-10.0.19041-SP0
 #> -----
-#> Session information updated at 2021-11-15 12:16
+#> Session information updated at 2021-11-16 09:04
 ```

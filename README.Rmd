@@ -512,7 +512,7 @@ print(np.shape(conv_features))
 ```
 
 ```{r py2r-01}
-python2r(py, c("conv_features"))
+python2r(py, "conv_features")
 ```
 
 
