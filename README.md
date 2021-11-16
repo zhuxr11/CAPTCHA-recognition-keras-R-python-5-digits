@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-16 08:49:47<br />
-**Compiled**: 2021-11-16 08:49:50
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-16 09:14:22<br />
+**Compiled**: 2021-11-16 09:14:25
 
 ## Abstract
 
@@ -460,9 +460,12 @@ was copied from the shape of the output from the flatten layer.
 ``` python
 # Define a function that copies the shape of a layer and defines an input layer
 def build_deep_layer(input_layer, class_level):
-  deep_layer = layers.Dense(64, activation = "relu")(input_layer)
-  deep_layer = layers.Dropout(0.5)(deep_layer)
-  deep_layer = layers.Dense(len(class_level), activation = "softmax")(deep_layer)
+  deep_layer = layers.Dense(units = 64, activation = "relu")(input_layer)
+  deep_layer = layers.Dropout(rate = 0.5)(deep_layer)
+  deep_layer = layers.Dense(
+    units = len(class_level),
+    activation = "softmax"
+  )(deep_layer)
   return deep_layer
 
 # Construct deep model layers (one for each digit)
@@ -881,12 +884,14 @@ deep_layer_union = layers.Dense(
   units = 64 * digit,
   activation = "relu"
 )(conv_layer_flatten)
-deep_layer_union = layers.Dropout(0.5)(deep_layer_union)
+deep_layer_union = layers.Dropout(rate = 0.5)(deep_layer_union)
 deep_layer_union = layers.Dense(
   units = len(class_level) * digit,
   activation = "linear"
 )(deep_layer_union)
-deep_layer_union = layers.Reshape(np.shape(data_y_union)[1:])(deep_layer_union)
+deep_layer_union = layers.Reshape(
+  target_shape = np.shape(data_y_union)[1:]
+)(deep_layer_union)
 deep_layer_union = layers.Softmax()(deep_layer_union)
 
 # Define a unified DNN model
@@ -982,5 +987,5 @@ session_info.show()
 #> Python 3.7.11 (default, Jul 27 2021, 09:42:29) [MSC v.1916 64 bit (AMD64)]
 #> Windows-10-10.0.19041-SP0
 #> -----
-#> Session information updated at 2021-11-16 09:04
+#> Session information updated at 2021-11-16 09:30
 ```

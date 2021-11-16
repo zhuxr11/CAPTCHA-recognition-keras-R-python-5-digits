@@ -422,9 +422,12 @@ Each DNN model (diagram as below) was built with a hidden layer and a dropout la
 ```{python build-DNN-models}
 # Define a function that copies the shape of a layer and defines an input layer
 def build_deep_layer(input_layer, class_level):
-  deep_layer = layers.Dense(64, activation = "relu")(input_layer)
-  deep_layer = layers.Dropout(0.5)(deep_layer)
-  deep_layer = layers.Dense(len(class_level), activation = "softmax")(deep_layer)
+  deep_layer = layers.Dense(units = 64, activation = "relu")(input_layer)
+  deep_layer = layers.Dropout(rate = 0.5)(deep_layer)
+  deep_layer = layers.Dense(
+    units = len(class_level),
+    activation = "softmax"
+  )(deep_layer)
   return deep_layer
 
 # Construct deep model layers (one for each digit)
@@ -752,12 +755,14 @@ deep_layer_union = layers.Dense(
   units = 64 * digit,
   activation = "relu"
 )(conv_layer_flatten)
-deep_layer_union = layers.Dropout(0.5)(deep_layer_union)
+deep_layer_union = layers.Dropout(rate = 0.5)(deep_layer_union)
 deep_layer_union = layers.Dense(
   units = len(class_level) * digit,
   activation = "linear"
 )(deep_layer_union)
-deep_layer_union = layers.Reshape(np.shape(data_y_union)[1:])(deep_layer_union)
+deep_layer_union = layers.Reshape(
+  target_shape = np.shape(data_y_union)[1:]
+)(deep_layer_union)
 deep_layer_union = layers.Softmax()(deep_layer_union)
 
 # Define a unified DNN model
