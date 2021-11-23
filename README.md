@@ -1,8 +1,8 @@
 
 # Breaking Text-Based CAPTCHA with Convolutional Nerual Network (CNN)
 
-**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-16 09:14:22<br />
-**Compiled**: 2021-11-16 09:14:25
+**Author**: Xiurui Zhu<br /> **Modified**: 2021-11-23 10:02:42<br />
+**Compiled**: 2021-11-23 10:02:45
 
 ## Abstract
 
@@ -92,7 +92,6 @@ check_python()
 import numpy as np
 import pandas as pd
 import os
-from matplotlib import pyplot as plt
 import tensorflow as tf
 # Set random seed right after importing tensorflow
 tf.random.set_seed(599)
@@ -978,7 +977,6 @@ utils::sessionInfo()
 ``` python
 session_info.show()
 #> -----
-#> matplotlib          3.4.3
 #> numpy               1.19.5
 #> pandas              1.3.4
 #> session_info        1.0.0
@@ -987,5 +985,5 @@ session_info.show()
 #> Python 3.7.11 (default, Jul 27 2021, 09:42:29) [MSC v.1916 64 bit (AMD64)]
 #> Windows-10-10.0.19041-SP0
 #> -----
-#> Session information updated at 2021-11-16 09:30
+#> Session information updated at 2021-11-23 10:17
 ```
